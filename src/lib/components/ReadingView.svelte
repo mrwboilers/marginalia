@@ -3,6 +3,7 @@
   import { app } from '../store.svelte';
   import Verse from './Verse.svelte';
   import MarginNote from './MarginNote.svelte';
+  import XrefLink from './XrefLink.svelte';
 
   let contentEl: HTMLElement | undefined = $state();
   let leftMarginEl: HTMLElement | undefined = $state();
@@ -170,7 +171,9 @@
           {#each app.xrefs as entry (entry.v)}
             <div class="ref-entry">
               <span class="ref-v">{entry.v}</span>
-              <span class="ref-list">{entry.refs.join(' · ')}</span>
+              <span class="ref-list">
+                {#each entry.refs as r, i (i)}{#if i > 0}<span class="sep"> · </span>{/if}<XrefLink refStr={r} />{/each}
+              </span>
             </div>
           {/each}
         </div>

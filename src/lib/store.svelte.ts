@@ -3,6 +3,7 @@ import type {
 } from './types';
 import { HIGHLIGHT_COLORS } from './types';
 import { DEFAULT_LAYERS, getProvider, type BibleProvider } from './provider';
+import { parseRef } from './books';
 
 const MIN_SCALE = 0.8;
 const MAX_SCALE = 1.6;
@@ -266,6 +267,56 @@ class AppState {
   goToHit(hit: SearchHit) {
     this.searchOpen = false;
     this.goTo(hit.bookId, hit.chapter);
+  }
+
+  // --- Cross-reference lookup (hover preview + click to navigate) ----------
+  private refChapterCache = new Map<string, Verse[]>();
+
+  private async chapterFor(bookId: number, chapter: number): Promise<Verse[]> {
+    const key = `${bookId}:${chapter}`;
+    let verses = this.refChapterCache.get(key);
+    if (!verses && this.provider) {
+      verses = await this.provider.chapter(bookId, chapter);
+      this.refChapterCache.set(key, verses);
+    }
+    return verses ?? [];
+  }
+
+  /** Text of the passage a cross-reference points to, for a hover preview. */
+  async refPreview(ref: string): Promise<{ ref: string; text: string } | null> {
+    const p = parseRef(ref);
+    if (!p || !this.provider) return null;
+
+    const MAX_VERSES = 5;
+    const single = p.chapter === p.endChapter && p.verse === p.endVerse;
+    const parts: string[] = [];
+    let count = 0;
+    for (let c = p.chapter; c <= p.endChapter && count < MAX_VERSES; c++) {
+      const verses = await this.chapterFor(p.bookId, c);
+      const from = c === p.chapter ? p.verse : 1;
+      const to = c === p.endChapter ? p.endVerse : Number.MAX_SAFE_INTEGER;
+      for (const v of verses) {
+        if (v.v < from || v.v > to) continue;
+        parts.push(single ? v.text : `${v.v} ${v.text}`);
+        if (++count >= MAX_VERSES) break;
+      }
+    }
+    let text = parts.join(' ');
+    if (!text) return null;
+    if (text.length > 420) text = text.slice(0, 420).trimEnd() + '…';
+
+    const label = single
+      ? `${p.name} ${p.chapter}:${p.verse}`
+      : p.endChapter !== p.chapter
+        ? `${p.name} ${p.chapter}:${p.verse}–${p.endChapter}:${p.endVerse}`
+        : `${p.name} ${p.chapter}:${p.verse}–${p.endVerse}`;
+    return { ref: label, text };
+  }
+
+  /** Jump to the chapter a cross-reference points to. */
+  goToRef(ref: string) {
+    const p = parseRef(ref);
+    if (p) this.goTo(p.bookId, p.chapter);
   }
 
   // --- Export / import ----------------------------------------------------
