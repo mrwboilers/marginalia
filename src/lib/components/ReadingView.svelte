@@ -5,17 +5,23 @@
   import MarginNote from './MarginNote.svelte';
 
   let contentEl: HTMLElement | undefined = $state();
-  let marginEl: HTMLElement | undefined = $state();
+  let leftMarginEl: HTMLElement | undefined = $state();
+  let rightMarginEl: HTMLElement | undefined = $state();
 
   let tops = $state<Record<string, number>>({});
   let justCreated = $state<string | null>(null);
 
   const verses = $derived(app.verses);
-  const notes = $derived(app.currentNotes);
   // Split the chapter across two text columns; references run down the middle.
   const mid = $derived(Math.ceil(verses.length / 2));
   const leftVerses = $derived(verses.slice(0, mid));
   const rightVerses = $derived(verses.slice(mid));
+
+  // Route each note to the margin on the same side as its verse's column,
+  // so notes sit as close to their verse as possible.
+  const leftVerseNums = $derived(new Set(leftVerses.map((v) => v.v)));
+  const leftNotes = $derived(app.currentNotes.filter((n) => leftVerseNums.has(n.verse)));
+  const rightNotes = $derived(app.currentNotes.filter((n) => !leftVerseNums.has(n.verse)));
 
   // --- Marking (selection → verse+offset) ----------------------------------
   function offsetWithin(container: HTMLElement, node: Node, nodeOffset: number): number {
@@ -71,27 +77,38 @@
     justCreated = app.ensureNote(Number(el.dataset.v)).id;
   }
 
-  // --- Position notes in the margin, aligned to their verse ----------------
-  function recompute() {
-    if (!contentEl || !marginEl) return;
-    const marginTop = marginEl.getBoundingClientRect().top;
-    const measured = app.currentNotes
+  // --- Position notes in each margin, aligned to their verse ---------------
+  const GAP = 8;
+  const APPROX_H = 46;
+
+  /** Place a group of notes in one margin: align to verse, then de-collide. */
+  function placeGroup(
+    group: { id: string; verse: number }[],
+    refTop: number,
+    into: Record<string, number>
+  ) {
+    const measured = group
       .map((n) => {
         const el = contentEl!.querySelector<HTMLElement>(`.vtext[data-v="${n.verse}"]`);
-        const t = el ? el.getBoundingClientRect().top - marginTop : 0;
+        const t = el ? el.getBoundingClientRect().top - refTop : 0;
         return { id: n.id, top: Math.max(0, t) };
       })
       .sort((a, b) => a.top - b.top);
 
-    const GAP = 8;
-    const APPROX_H = 46;
     let prevBottom = -Infinity;
-    const next: Record<string, number> = {};
     for (const m of measured) {
       const t = Math.max(m.top, prevBottom + GAP);
-      next[m.id] = t;
+      into[m.id] = t;
       prevBottom = t + APPROX_H;
     }
+  }
+
+  function recompute() {
+    if (!contentEl || !leftMarginEl || !rightMarginEl) return;
+    const next: Record<string, number> = {};
+    // Both margins share the same grid row, so a common reference top aligns both.
+    placeGroup(leftNotes, leftMarginEl.getBoundingClientRect().top, next);
+    placeGroup(rightNotes, rightMarginEl.getBoundingClientRect().top, next);
     tops = next;
   }
 
@@ -137,7 +154,11 @@
       <p class="empty">{app.loadingChapter ? 'Loading…' : 'No text.'}</p>
     {:else}
       <div class="content" bind:this={contentEl} onmouseup={onMouseUp} onclick={onContentClick} role="presentation">
-        <div class="side-margin" aria-hidden="true"></div>
+        <div class="note-margin left" bind:this={leftMarginEl}>
+          {#each leftNotes as note (note.id)}
+            <MarginNote {note} side="left" top={tops[note.id] ?? 0} open={justCreated === note.id} />
+          {/each}
+        </div>
 
         <div class="text-col left">
           {#each leftVerses as verse (verse.v)}
@@ -160,9 +181,9 @@
           {/each}
         </div>
 
-        <div class="note-margin" bind:this={marginEl}>
-          {#each notes as note (note.id)}
-            <MarginNote {note} top={tops[note.id] ?? 0} open={justCreated === note.id} />
+        <div class="note-margin right" bind:this={rightMarginEl}>
+          {#each rightNotes as note (note.id)}
+            <MarginNote {note} side="right" top={tops[note.id] ?? 0} open={justCreated === note.id} />
           {/each}
         </div>
       </div>
@@ -236,9 +257,6 @@
     column-gap: 1.5rem;
     align-items: stretch;
   }
-  .side-margin {
-    border-right: 1px solid #e2d8c4;
-  }
   .text-col {
     text-align: justify;
     hyphens: auto;
@@ -272,6 +290,12 @@
 
   .note-margin {
     position: relative;
+  }
+  .note-margin.left {
+    border-right: 1px solid #e2d8c4;
+    padding-right: 0.6rem;
+  }
+  .note-margin.right {
     border-left: 1px solid #e2d8c4;
     padding-left: 0.6rem;
   }

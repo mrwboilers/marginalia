@@ -2,7 +2,12 @@
   import { app } from '../store.svelte';
   import type { Note } from '../types';
 
-  let { note, top, open = false }: { note: Note; top: number; open?: boolean } = $props();
+  let {
+    note,
+    top,
+    open = false,
+    side = 'right',
+  }: { note: Note; top: number; open?: boolean; side?: 'left' | 'right' } = $props();
 
   let editing = $state(false);
   let hovered = $state(false);
@@ -19,13 +24,27 @@
     if (editing && ta) ta.focus();
   });
 
+  function close() {
+    editing = false;
+    // Don't leave an empty chip behind if the note was never written.
+    if (!note.body.trim()) app.deleteNote(note.id);
+  }
+
   function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape') editing = false;
+    if (e.key === 'Escape') {
+      close();
+      return;
+    }
+    // Enter saves & closes; Shift+Enter inserts a newline.
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      close();
+    }
   }
 </script>
 
 <div
-  class="mnote"
+  class="mnote {side}"
   style={`top:${top}px`}
   role="note"
   onmouseenter={() => (hovered = true)}
@@ -47,7 +66,7 @@
         <span class="ref">{app.book?.name ?? ''} {note.chapter}:{note.verse}</span>
         <div class="actions">
           <button class="link danger" onclick={() => app.deleteNote(note.id)}>Delete</button>
-          <button class="link" onclick={() => (editing = false)}>Done</button>
+          <button class="link" onclick={close}>Done</button>
         </div>
       </div>
       <textarea
@@ -57,6 +76,7 @@
         oninput={(e) => app.updateNote(note.id, (e.target as HTMLTextAreaElement).value)}
         onkeydown={onKey}
       ></textarea>
+      <div class="hint"><kbd>Enter</kbd> to save · <kbd>Shift</kbd>+<kbd>Enter</kbd> for a new line</div>
     </div>
   {:else if hovered && hasBody}
     <div class="pop read" style={`--layer:${layerColor}`}>
@@ -78,11 +98,17 @@
     text-align: left;
     background: none;
     border: none;
-    border-left: 2px solid var(--layer);
-    padding: 0.1rem 0.1rem 0.1rem 0.55rem;
     cursor: pointer;
     font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
     color: #5f5344;
+  }
+  .mnote.right .chip {
+    border-left: 2px solid var(--layer);
+    padding: 0.1rem 0.1rem 0.1rem 0.55rem;
+  }
+  .mnote.left .chip {
+    border-right: 2px solid var(--layer);
+    padding: 0.1rem 0.55rem 0.1rem 0.1rem;
   }
   .vlabel {
     display: block;
@@ -113,7 +139,6 @@
   .pop {
     position: absolute;
     top: -0.35rem;
-    left: -0.5rem;
     width: 280px;
     max-width: 40vw;
     background: #fffdf8;
@@ -124,6 +149,15 @@
     padding: 0.6rem 0.7rem;
     z-index: 20;
     font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+  /* Expand toward the text (inward) so the card never runs off the page edge. */
+  .mnote.right .pop {
+    right: -0.25rem;
+    left: auto;
+  }
+  .mnote.left .pop {
+    left: -0.25rem;
+    right: auto;
   }
   .pop .ref {
     font-size: 0.68rem;
@@ -177,5 +211,18 @@
   textarea:focus {
     outline: 2px solid #c9b892;
     border-color: transparent;
+  }
+  .hint {
+    margin-top: 0.35rem;
+    font-size: 0.66rem;
+    color: #a2937a;
+  }
+  .hint kbd {
+    font-family: inherit;
+    background: #efe7d6;
+    border: 1px solid #ddd2bd;
+    border-radius: 3px;
+    padding: 0 0.25rem;
+    font-size: 0.64rem;
   }
 </style>
