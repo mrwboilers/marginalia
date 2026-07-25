@@ -10,6 +10,15 @@
   let spanEl: HTMLElement | undefined = $state();
   let timer: ReturnType<typeof setTimeout>;
 
+  // This component is reused across chapters (keyed by position), so clear the
+  // cached passage whenever the reference it points to changes.
+  $effect(() => {
+    refStr;
+    preview = null;
+    loading = false;
+    open = false;
+  });
+
   async function enter() {
     clearTimeout(timer);
     timer = setTimeout(async () => {
