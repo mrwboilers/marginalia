@@ -1,11 +1,15 @@
 <script lang="ts">
   import { app } from '../store.svelte';
+  import StrongNum from './StrongNum.svelte';
+  import type { RenderPiece } from '../store.svelte';
   import type { Verse } from '../types';
 
   let { verse }: { verse: Verse } = $props();
 
-  const pieces = $derived(app.renderVerse(verse.v, verse.text));
   const isRed = $derived(verse.red && app.redLetter);
+  const strongMode = $derived(app.strongsOn && !!app.strongsFor(verse.v));
+  const pieces = $derived(app.renderVerse(verse.v, verse.text));
+  const strongItems = $derived(strongMode ? app.renderStrongVerse(verse.v) : []);
 
   function onPieceClick(markIds: string[]) {
     if (app.tool === 'erase' && markIds.length) {
@@ -14,20 +18,31 @@
   }
 </script>
 
+{#snippet pieceView(piece: RenderPiece)}
+  <span
+    class="piece"
+    class:underline={piece.underline}
+    class:erasable={app.tool === 'erase' && piece.markIds.length}
+    style={piece.highlight ? `background:${piece.highlight}` : ''}
+    onclick={() => onPieceClick(piece.markIds)}
+    role={app.tool === 'erase' && piece.markIds.length ? 'button' : undefined}
+    tabindex={app.tool === 'erase' && piece.markIds.length ? 0 : undefined}
+    onkeydown={(e) => e.key === 'Enter' && onPieceClick(piece.markIds)}
+    >{piece.text}</span
+  >
+{/snippet}
+
 <sup class="vnum">{verse.v}</sup><span
   class="vtext"
   class:red={isRed}
+  class:strong-mode={strongMode}
   data-v={verse.v}
-  >{#each pieces as piece}<span
-      class="piece"
-      class:underline={piece.underline}
-      class:erasable={app.tool === 'erase' && piece.markIds.length}
-      style={piece.highlight ? `background:${piece.highlight}` : ''}
-      onclick={() => onPieceClick(piece.markIds)}
-      role={app.tool === 'erase' && piece.markIds.length ? 'button' : undefined}
-      tabindex={app.tool === 'erase' && piece.markIds.length ? 0 : undefined}
-      onkeydown={(e) => e.key === 'Enter' && onPieceClick(piece.markIds)}
-      >{piece.text}</span>{/each}</span>{' '}
+  >{#if strongMode}{#each strongItems as item}{#if 'strongs' in item}{#each item.strongs as n (n)}<StrongNum
+            num={n}
+          />{/each}{:else}{@render pieceView(item)}{/if}{/each}{:else}{#each pieces as piece}{@render pieceView(
+        piece
+      )}{/each}{/if}</span
+>{' '}
 
 <style>
   .vnum {
@@ -42,8 +57,11 @@
   .vtext.red {
     color: #b03a2e;
   }
+  /* Strong's numbers add height; a little extra leading keeps lines even. */
+  .vtext.strong-mode {
+    line-height: 2.1;
+  }
   .piece {
-    /* highlight background sits behind the ink; slight padding softens edges */
     border-radius: 2px;
     padding: 0.02em 0;
     box-decoration-break: clone;

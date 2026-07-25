@@ -46,6 +46,8 @@
 
   function onMouseUp() {
     if (app.tool !== 'highlight' && app.tool !== 'underline') return;
+    // Inline Strong's numbers would throw off character offsets — mark with them off.
+    if (app.strongsOn) return;
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0 || !contentEl) return;
     const range = sel.getRangeAt(0);

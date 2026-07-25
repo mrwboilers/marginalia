@@ -1,9 +1,13 @@
 import type {
-  BookMeta, Layer, Mark, MarkingsExport, Note, SearchHit, ToolMode, Verse, Xref,
+  BookMeta, Layer, Mark, MarkingsExport, Note, SearchHit, StrongSeg, ToolMode, Verse, Xref,
 } from './types';
 import { HIGHLIGHT_COLORS } from './types';
 import { DEFAULT_LAYERS, getProvider, type BibleProvider } from './provider';
+import { loadLexicon, loadStrongsChapter } from './provider/strongs';
 import { parseRef } from './books';
+
+/** A rendered Strong's item: a styled text piece or a Strong's number marker. */
+export type StrongItem = RenderPiece | { strongs: string[] };
 
 const MIN_SCALE = 0.8;
 const MAX_SCALE = 1.6;
@@ -35,6 +39,9 @@ class AppState {
   redLetter = $state(true);
   fontScale = $state(1);
   activeLayerId = $state('study');
+
+  strongsOn = $state(false);
+  strongsByVerse = $state<Map<number, StrongSeg[]>>(new Map());
 
   layers = $state<Layer[]>([]);
   marks = $state<Mark[]>([]);
@@ -99,6 +106,9 @@ class AppState {
       this.xrefs = xrefs;
       this.bookId = bookId;
       this.chapter = chapter;
+      this.strongsByVerse = this.strongsOn
+        ? await loadStrongsChapter(bookId, chapter)
+        : new Map();
     } finally {
       this.loadingChapter = false;
     }
@@ -130,6 +140,20 @@ class AppState {
 
   adjustFont(delta: number) {
     this.fontScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, this.fontScale + delta));
+  }
+
+  async toggleStrongs() {
+    this.strongsOn = !this.strongsOn;
+    if (this.strongsOn) {
+      void loadLexicon();
+      this.strongsByVerse = await loadStrongsChapter(this.bookId, this.chapter);
+    } else {
+      this.strongsByVerse = new Map();
+    }
+  }
+
+  strongsFor(v: number): StrongSeg[] | undefined {
+    return this.strongsByVerse.get(v);
   }
 
   toggleLayer(id: string) {
@@ -214,20 +238,32 @@ class AppState {
     void this.provider?.deleteNote(id);
   }
 
-  renderVerse(v: number, text: string): RenderPiece[] {
-    const applicable = this.marks.filter(
+  private applicableMarks(v: number): Mark[] {
+    return this.marks.filter(
       (m) =>
         m.bookId === this.bookId &&
         m.chapter === this.chapter &&
         m.verse === v &&
         this.visibleLayerIds.has(m.layerId)
     );
-    if (!applicable.length) return [{ text, markIds: [] }];
+  }
 
-    const bounds = new Set<number>([0, text.length]);
-    for (const m of applicable) {
-      bounds.add(Math.max(0, Math.min(text.length, m.start)));
-      bounds.add(Math.max(0, Math.min(text.length, m.end)));
+  /**
+   * Resolve `text` (a slice of verse `v` starting at absolute `baseOffset`) into
+   * styled pieces given the marks that apply. baseOffset lets Strong's segments
+   * be styled correctly while marks stay anchored to whole-verse offsets.
+   */
+  private piecesForRange(v: number, baseOffset: number, text: string): RenderPiece[] {
+    const len = text.length;
+    const marks = this.applicableMarks(v).filter(
+      (m) => m.end > baseOffset && m.start < baseOffset + len
+    );
+    if (!marks.length) return [{ text, markIds: [] }];
+
+    const bounds = new Set<number>([0, len]);
+    for (const m of marks) {
+      bounds.add(Math.max(0, Math.min(len, m.start - baseOffset)));
+      bounds.add(Math.max(0, Math.min(len, m.end - baseOffset)));
     }
     const points = [...bounds].sort((a, b) => a - b);
 
@@ -236,12 +272,34 @@ class AppState {
       const s = points[i];
       const e = points[i + 1];
       if (e <= s) continue;
-      const covering = applicable.filter((m) => m.start <= s && m.end >= e);
+      const abs = baseOffset + s;
+      const absE = baseOffset + e;
+      const covering = marks.filter((m) => m.start <= abs && m.end >= absE);
       const highlight = covering.filter((m) => m.type === 'highlight').at(-1)?.color;
       const underline = covering.some((m) => m.type === 'underline');
       pieces.push({ text: text.slice(s, e), highlight, underline, markIds: covering.map((m) => m.id) });
     }
     return pieces;
+  }
+
+  renderVerse(v: number, text: string): RenderPiece[] {
+    return this.piecesForRange(v, 0, text);
+  }
+
+  /** Render a verse with inline Strong's numbers, marks still applied. */
+  renderStrongVerse(v: number): StrongItem[] {
+    const segs = this.strongsByVerse.get(v);
+    if (!segs) return [];
+    const items: StrongItem[] = [];
+    let off = 0;
+    for (const seg of segs) {
+      if (seg.t) {
+        items.push(...this.piecesForRange(v, off, seg.t));
+        off += seg.t.length;
+      }
+      if (seg.s && seg.s.length) items.push({ strongs: seg.s });
+    }
+    return items;
   }
 
   // --- Search -------------------------------------------------------------

@@ -37,6 +37,26 @@ export interface SearchHit {
   text: string;
 }
 
+/** A Strong's-tagged text segment: a text run whose last word carries `s`. */
+export interface StrongSeg {
+  t: string;
+  s?: string[];
+}
+
+/** A Strong's lexicon entry (trimmed). */
+export interface LexEntry {
+  /** Original-language word. */
+  w: string;
+  /** Transliteration. */
+  t: string;
+  /** Part of speech. */
+  p: string;
+  /** Strong's definition. */
+  d: string;
+  /** Outline of biblical usage. */
+  u?: string;
+}
+
 export type ToolMode = 'read' | 'highlight' | 'underline' | 'note' | 'erase';
 export type MarkType = 'highlight' | 'underline';
 

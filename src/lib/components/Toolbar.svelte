@@ -113,6 +113,9 @@
       <button class="btn" onclick={() => (app.redLetter = !app.redLetter)}>
         Red letter: {app.redLetter ? 'on' : 'off'}
       </button>
+      <button class="btn" class:active={app.strongsOn} onclick={() => app.toggleStrongs()}>
+        Strong's: {app.strongsOn ? 'on' : 'off'}
+      </button>
     </div>
     <div class="group">
       <button class="btn" aria-label="Decrease font size" onclick={() => app.adjustFont(-0.1)}>A−</button>
@@ -228,7 +231,8 @@
   .search-btn {
     background: #efe7d6;
   }
-  .btn.tool.active {
+  .btn.tool.active,
+  .btn.active {
     background: #2b2520;
     color: #f4efe2;
     border-color: #2b2520;
