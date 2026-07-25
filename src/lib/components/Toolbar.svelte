@@ -101,10 +101,10 @@
     <span class="row-label">Layers</span>
     <div class="group layers">
       {#each app.layers as layer (layer.id)}
-        <label class="layer" class:active={app.activeLayerId === layer.id}>
+        <label class="layer">
           <input type="checkbox" checked={layer.visible} onchange={() => app.toggleLayer(layer.id)} />
           <span class="dot" style={`background:${layer.color}`}></span>
-          <button type="button" class="layer-name" onclick={() => (app.activeLayerId = layer.id)}>{layer.name}</button>
+          <span class="layer-name">{layer.name}</span>
         </label>
       {/each}
     </div>
@@ -258,13 +258,8 @@
     align-items: center;
     gap: 0.35rem;
     padding: 0.3rem 0.55rem;
-    border: 1px solid transparent;
     border-radius: 999px;
     cursor: pointer;
-  }
-  .layer.active {
-    border-color: #a4906f;
-    background: #fbf8f0;
   }
   .dot {
     width: 10px;
@@ -272,13 +267,8 @@
     border-radius: 50%;
   }
   .layer-name {
-    font: inherit;
     font-size: 0.85rem;
-    background: none;
-    border: none;
     color: #2b2520;
-    cursor: pointer;
-    padding: 0;
   }
 
   .hidden-file {

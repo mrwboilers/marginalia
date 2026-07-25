@@ -2,7 +2,7 @@ import type {
   BookMeta, Layer, Mark, MarkingsExport, Note, SearchHit, ToolMode, Verse, Xref,
 } from './types';
 import { HIGHLIGHT_COLORS } from './types';
-import { getProvider, type BibleProvider } from './provider';
+import { DEFAULT_LAYERS, getProvider, type BibleProvider } from './provider';
 
 const MIN_SCALE = 0.8;
 const MAX_SCALE = 1.6;
@@ -61,12 +61,27 @@ class AppState {
     this.provider = await getProvider();
     this.books = await this.provider.books();
     const data = await this.provider.loadUserData();
+
+    // Migration: collapse to the single Study layer (older DBs also had "Sermon").
+    // Any markings on a removed layer are folded onto Study rather than orphaned.
+    const KEEP = 'study';
+    const dirty =
+      !data.layers.some((l) => l.id === KEEP) ||
+      data.layers.some((l) => l.id !== KEEP) ||
+      data.marks.some((m) => m.layerId !== KEEP) ||
+      data.notes.some((n) => n.layerId !== KEEP);
+    if (dirty) {
+      const study = data.layers.find((l) => l.id === KEEP) ?? DEFAULT_LAYERS[0];
+      data.layers = [study];
+      data.marks = data.marks.map((m) => (m.layerId === KEEP ? m : { ...m, layerId: KEEP }));
+      data.notes = data.notes.map((n) => (n.layerId === KEEP ? n : { ...n, layerId: KEEP }));
+      await this.provider.replaceUserData(data);
+    }
+
     this.layers = data.layers;
     this.marks = data.marks;
     this.notes = data.notes;
-    if (!this.layers.some((l) => l.id === this.activeLayerId)) {
-      this.activeLayerId = this.layers[0]?.id ?? 'study';
-    }
+    this.activeLayerId = KEEP;
     await this.loadChapter(this.bookId, this.chapter);
     this.ready = true;
   }

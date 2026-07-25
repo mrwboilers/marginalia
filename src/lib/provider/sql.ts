@@ -115,10 +115,24 @@ export class SqlProvider implements BibleProvider {
   }
 
   async replaceUserData(data: UserData): Promise<void> {
-    await this.db.execute(`DELETE FROM marks`);
-    await this.db.execute(`DELETE FROM notes`);
-    for (const m of data.marks) await this.upsertMark(m);
-    for (const n of data.notes) await this.upsertNote(n);
-    for (const l of data.layers) await this.setLayerVisible(l.id, l.visible);
+    await this.db.execute('BEGIN');
+    try {
+      await this.db.execute(`DELETE FROM marks`);
+      await this.db.execute(`DELETE FROM notes`);
+      await this.db.execute(`DELETE FROM layers`);
+      for (let i = 0; i < data.layers.length; i++) {
+        const l = data.layers[i];
+        await this.db.execute(
+          `INSERT INTO layers (id, name, color, visible, sort) VALUES ($1,$2,$3,$4,$5)`,
+          [l.id, l.name, l.color, l.visible ? 1 : 0, i]
+        );
+      }
+      for (const m of data.marks) await this.upsertMark(m);
+      for (const n of data.notes) await this.upsertNote(n);
+      await this.db.execute('COMMIT');
+    } catch (e) {
+      await this.db.execute('ROLLBACK');
+      throw e;
+    }
   }
 }

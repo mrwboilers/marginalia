@@ -101,8 +101,7 @@ async function main() {
 
   db.prepare(
     `INSERT INTO layers (id, name, color, visible, sort) VALUES
-       ('study', 'Study', '#d4a017', 1, 0),
-       ('sermon', 'Sermon', '#4a90d9', 1, 1)`
+       ('study', 'Study', '#d4a017', 1, 0)`
   ).run();
 
   const insBook = db.prepare(

@@ -24,7 +24,6 @@ export interface BibleProvider {
 
 export const DEFAULT_LAYERS: Layer[] = [
   { id: 'study', name: 'Study', color: '#d4a017', visible: true },
-  { id: 'sermon', name: 'Sermon', color: '#4a90d9', visible: true },
 ];
 
 export function isTauri(): boolean {
