@@ -100,7 +100,10 @@ export interface Note {
   bookId: number;
   chapter: number;
   verse: number;
+  /** Note content: plain text for `format: 'text'`, sanitized HTML for `'html'`. */
   body: string;
+  /** Absent/`'text'` = legacy plain text; `'html'` = rich text (may embed images). */
+  format?: 'text' | 'html';
   layerId: string;
 }
 

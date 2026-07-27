@@ -1,6 +1,8 @@
 <script lang="ts">
   import { app } from '../store.svelte';
   import type { Note } from '../types';
+  import { htmlToPlainText, isHtmlEmpty, sanitizeHtml, textToHtml } from '../richtext';
+  import RichNoteEditor from './RichNoteEditor.svelte';
 
   let {
     note,
@@ -11,35 +13,22 @@
 
   let editing = $state(false);
   let hovered = $state(false);
-  let ta: HTMLTextAreaElement | undefined = $state();
 
   const layerColor = $derived(app.layers.find((l) => l.id === note.layerId)?.color ?? '#8a7c66');
-  const hasBody = $derived(note.body.trim().length > 0);
+  const isHtml = $derived(note.format === 'html');
+  const hasBody = $derived(isHtml ? !isHtmlEmpty(note.body) : note.body.trim().length > 0);
+  const previewText = $derived(isHtml ? htmlToPlainText(note.body) : note.body);
+  const hasImage = $derived(isHtml && /<img\b/i.test(note.body));
 
   // Auto-open the editor when the note is freshly created via the Note tool.
   $effect(() => {
     if (open) editing = true;
   });
-  $effect(() => {
-    if (editing && ta) ta.focus();
-  });
 
   function close() {
     editing = false;
     // Don't leave an empty chip behind if the note was never written.
-    if (!note.body.trim()) app.deleteNote(note.id);
-  }
-
-  function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
-      close();
-      return;
-    }
-    // Enter saves & closes; Shift+Enter inserts a newline.
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      close();
-    }
+    if (!hasBody) app.deleteNote(note.id);
   }
 </script>
 
@@ -57,11 +46,14 @@
     onclick={() => (editing = true)}
   >
     <span class="vlabel">{note.chapter}:{note.verse}</span>
-    <span class="preview">{hasBody ? note.body : 'Empty note'}</span>
+    <span class="preview">
+      {#if hasImage && !previewText}🖼 Image{:else}{hasBody ? previewText : 'Empty note'}{/if}
+      {#if hasImage && previewText}<span class="imgtag"> · 🖼</span>{/if}
+    </span>
   </button>
 
   {#if editing}
-    <div class="pop editor" style={`--layer:${layerColor}`}>
+    <div class="pop editor" style={`--layer:${layerColor}`} onkeydown={(e) => { if (e.key === 'Escape') close(); }} role="presentation">
       <div class="pop-head">
         <span class="ref">{app.book?.name ?? ''} {note.chapter}:{note.verse}</span>
         <div class="actions">
@@ -69,19 +61,20 @@
           <button class="link" onclick={close}>Done</button>
         </div>
       </div>
-      <textarea
-        bind:this={ta}
-        value={note.body}
-        placeholder="Write your note…"
-        oninput={(e) => app.updateNote(note.id, (e.target as HTMLTextAreaElement).value)}
-        onkeydown={onKey}
-      ></textarea>
-      <div class="hint"><kbd>Enter</kbd> to save · <kbd>Shift</kbd>+<kbd>Enter</kbd> for a new line</div>
+      <RichNoteEditor
+        html={isHtml ? note.body : textToHtml(note.body)}
+        onchange={(h) => app.updateNote(note.id, h, 'html')}
+      />
+      <div class="hint"><kbd>Esc</kbd> or <kbd>Done</kbd> to save · paste or drop an image to embed it</div>
     </div>
   {:else if hovered && hasBody}
     <div class="pop read" style={`--layer:${layerColor}`}>
       <div class="ref">{app.book?.name ?? ''} {note.chapter}:{note.verse}</div>
-      <div class="full">{note.body}</div>
+      {#if isHtml}
+        <div class="full rich">{@html sanitizeHtml(note.body)}</div>
+      {:else}
+        <div class="full">{note.body}</div>
+      {/if}
     </div>
   {/if}
 </div>
@@ -129,6 +122,9 @@
     font-style: italic;
     color: #6b5d4b;
   }
+  .imgtag {
+    font-style: normal;
+  }
   .chip.empty .preview {
     opacity: 0.55;
   }
@@ -150,6 +146,10 @@
     z-index: 20;
     font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   }
+  .pop.editor {
+    width: 440px;
+    max-width: 60vw;
+  }
   /* Expand toward the text (inward) so the card never runs off the page edge. */
   .mnote.right .pop {
     right: -0.25rem;
@@ -170,6 +170,33 @@
     line-height: 1.45;
     color: #2b2520;
     white-space: pre-wrap;
+  }
+  .pop .full.rich {
+    white-space: normal;
+  }
+  .pop .full.rich :global(h3) {
+    font-size: 0.95rem;
+    margin: 0.3rem 0 0.2rem;
+  }
+  .pop .full.rich :global(blockquote) {
+    margin: 0.3rem 0;
+    padding-left: 0.6rem;
+    border-left: 3px solid #d8ccb4;
+    color: #5f5344;
+  }
+  .pop .full.rich :global(ul),
+  .pop .full.rich :global(ol) {
+    margin: 0.2rem 0;
+    padding-left: 1.3rem;
+  }
+  .pop .full.rich :global(img) {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    margin: 0.2rem 0;
+  }
+  .pop .full.rich :global(a) {
+    color: #7a5230;
   }
   .pop-head {
     display: flex;
@@ -195,25 +222,8 @@
   .link:hover {
     text-decoration: underline;
   }
-  textarea {
-    width: 100%;
-    min-height: 5rem;
-    resize: vertical;
-    border: 1px solid #e0d6c0;
-    border-radius: 6px;
-    padding: 0.45rem 0.5rem;
-    font: inherit;
-    font-size: 0.86rem;
-    line-height: 1.45;
-    color: #2b2520;
-    background: #fffefb;
-  }
-  textarea:focus {
-    outline: 2px solid #c9b892;
-    border-color: transparent;
-  }
   .hint {
-    margin-top: 0.35rem;
+    margin-top: 0.4rem;
     font-size: 0.66rem;
     color: #a2937a;
   }

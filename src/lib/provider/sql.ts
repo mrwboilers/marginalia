@@ -16,6 +16,11 @@ export class SqlProvider implements BibleProvider {
     await this.db.execute(
       `CREATE TABLE IF NOT EXISTS reading_progress (key TEXT PRIMARY KEY, done_at TEXT NOT NULL)`
     );
+    // Migration for DBs copied before rich-text notes: add the format column.
+    const cols = await this.db.select<{ name: string }[]>(`PRAGMA table_info(notes)`);
+    if (!cols.some((c) => c.name === 'format')) {
+      await this.db.execute(`ALTER TABLE notes ADD COLUMN format TEXT`);
+    }
   }
 
   async books(): Promise<BookMeta[]> {
@@ -73,13 +78,16 @@ export class SqlProvider implements BibleProvider {
        FROM marks`
     );
     const notes = await this.db.select<
-      { id: string; bookId: number; chapter: number; verse: number; body: string; layerId: string }[]
-    >(`SELECT id, book_id AS bookId, chapter, verse, body, layer_id AS layerId FROM notes`);
+      { id: string; bookId: number; chapter: number; verse: number; body: string; format: string | null; layerId: string }[]
+    >(`SELECT id, book_id AS bookId, chapter, verse, body, format, layer_id AS layerId FROM notes`);
 
     return {
       layers: layers.map((l) => ({ ...l, visible: !!l.visible })),
       marks: marks as Mark[],
-      notes: notes as Note[],
+      notes: notes.map((n) => ({
+        ...n,
+        format: n.format === 'html' ? 'html' : 'text',
+      })) as Note[],
     };
   }
 
@@ -102,11 +110,12 @@ export class SqlProvider implements BibleProvider {
 
   async upsertNote(n: Note): Promise<void> {
     const now = new Date().toISOString();
+    const format = n.format ?? 'text';
     await this.db.execute(
-      `INSERT INTO notes (id, book_id, chapter, verse, body, layer_id, created, updated)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$7)
-       ON CONFLICT(id) DO UPDATE SET body=$5, layer_id=$6, updated=$7`,
-      [n.id, n.bookId, n.chapter, n.verse, n.body, n.layerId, now]
+      `INSERT INTO notes (id, book_id, chapter, verse, body, format, layer_id, created, updated)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8)
+       ON CONFLICT(id) DO UPDATE SET body=$5, format=$6, layer_id=$7, updated=$8`,
+      [n.id, n.bookId, n.chapter, n.verse, n.body, format, n.layerId, now]
     );
   }
 

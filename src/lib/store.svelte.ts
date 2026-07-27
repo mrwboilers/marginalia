@@ -232,6 +232,7 @@ class AppState {
       chapter: this.chapter,
       verse: v,
       body: '',
+      format: 'html', // new notes are rich text; legacy notes stay 'text'
       layerId: this.activeLayerId,
     };
     this.notes = [...this.notes, note];
@@ -239,11 +240,11 @@ class AppState {
     return note;
   }
 
-  updateNote(id: string, body: string) {
+  updateNote(id: string, body: string, format: 'text' | 'html' = 'html') {
     let updated: Note | undefined;
     this.notes = this.notes.map((n) => {
       if (n.id !== id) return n;
-      updated = { ...n, body };
+      updated = { ...n, body, format };
       return updated;
     });
     if (!updated) return;
