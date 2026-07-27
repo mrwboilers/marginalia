@@ -20,6 +20,11 @@ export interface BibleProvider {
   deleteNote(id: string): Promise<void>;
   setLayerVisible(id: string, visible: boolean): Promise<void>;
   replaceUserData(data: UserData): Promise<void>;
+
+  // Bible Companion reading progress: a flat set of "done" portion keys
+  // ("<month>-<day>:<portionIndex>"), stored separately from markings.
+  loadReadingProgress(): Promise<string[]>;
+  setReadingDone(key: string, done: boolean): Promise<void>;
 }
 
 export const DEFAULT_LAYERS: Layer[] = [

@@ -4,6 +4,7 @@
   import Toolbar from '$lib/components/Toolbar.svelte';
   import ReadingView from '$lib/components/ReadingView.svelte';
   import SearchPanel from '$lib/components/SearchPanel.svelte';
+  import CompanionPanel from '$lib/components/CompanionPanel.svelte';
 
   let error = $state('');
 
@@ -31,6 +32,9 @@
   </div>
   {#if app.searchOpen}
     <SearchPanel />
+  {/if}
+  {#if app.companionOpen}
+    <CompanionPanel />
   {/if}
 {/if}
 

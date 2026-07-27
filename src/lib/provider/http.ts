@@ -4,6 +4,7 @@ import { loadChapterXrefs } from './xrefs';
 
 const BASE = 'https://raw.githubusercontent.com/aruljohn/Bible-kjv/master';
 const STORE_KEY = 'marginalia.userdata.v2';
+const PROGRESS_KEY = 'marginalia.companion.v1';
 
 // Canonical KJV book order + chapter counts (avoids fetching all 66 books at startup).
 const BOOKS: [string, number][] = [
@@ -141,5 +142,20 @@ export class HttpProvider implements BibleProvider {
 
   async replaceUserData(data: UserData): Promise<void> {
     this.write(data);
+  }
+
+  async loadReadingProgress(): Promise<string[]> {
+    try {
+      const raw = localStorage.getItem(PROGRESS_KEY);
+      if (raw) return JSON.parse(raw) as string[];
+    } catch { /* fall through */ }
+    return [];
+  }
+
+  async setReadingDone(key: string, done: boolean): Promise<void> {
+    const set = new Set(await this.loadReadingProgress());
+    if (done) set.add(key);
+    else set.delete(key);
+    localStorage.setItem(PROGRESS_KEY, JSON.stringify([...set]));
   }
 }

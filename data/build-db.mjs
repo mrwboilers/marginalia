@@ -92,6 +92,9 @@ async function main() {
       created TEXT NOT NULL, updated TEXT NOT NULL
     );
     CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+
+    -- Bible Companion reading progress: "done" portion keys ("<month>-<day>:<i>").
+    CREATE TABLE reading_progress (key TEXT PRIMARY KEY, done_at TEXT NOT NULL);
   `);
 
   db.prepare(

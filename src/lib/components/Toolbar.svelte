@@ -72,6 +72,7 @@
         <button class="btn nav-arrow" aria-label="Next chapter" disabled={!app.canNext} onclick={() => app.nextChapter()}>›</button>
       </div>
       <button class="btn search-btn" onclick={() => app.openSearch()}>Search</button>
+      <button class="btn companion-btn" onclick={() => app.openCompanion()}>Companion</button>
     </div>
   </div>
 
@@ -228,7 +229,8 @@
     font-size: 1rem;
     line-height: 1;
   }
-  .search-btn {
+  .search-btn,
+  .companion-btn {
     background: #efe7d6;
   }
   .btn.tool.active,

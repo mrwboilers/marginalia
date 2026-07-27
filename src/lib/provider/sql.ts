@@ -12,6 +12,10 @@ export class SqlProvider implements BibleProvider {
   async init(): Promise<void> {
     // The Rust setup hook has already copied the bundled DB into app-config.
     this.db = await Database.load('sqlite:marginalia.db');
+    // Migration for DBs copied before the Companion feature existed.
+    await this.db.execute(
+      `CREATE TABLE IF NOT EXISTS reading_progress (key TEXT PRIMARY KEY, done_at TEXT NOT NULL)`
+    );
   }
 
   async books(): Promise<BookMeta[]> {
@@ -133,6 +137,23 @@ export class SqlProvider implements BibleProvider {
     } catch (e) {
       await this.db.execute('ROLLBACK');
       throw e;
+    }
+  }
+
+  async loadReadingProgress(): Promise<string[]> {
+    const rows = await this.db.select<{ key: string }[]>(`SELECT key FROM reading_progress`);
+    return rows.map((r) => r.key);
+  }
+
+  async setReadingDone(key: string, done: boolean): Promise<void> {
+    if (done) {
+      await this.db.execute(
+        `INSERT INTO reading_progress (key, done_at) VALUES ($1, $2)
+         ON CONFLICT(key) DO UPDATE SET done_at = $2`,
+        [key, new Date().toISOString()]
+      );
+    } else {
+      await this.db.execute(`DELETE FROM reading_progress WHERE key = $1`, [key]);
     }
   }
 }

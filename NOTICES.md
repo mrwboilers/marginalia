@@ -25,6 +25,15 @@ separately (see LICENSE).
   licensed **CC BY-SA**. Derived from James Strong's 1890 concordance.
   "Strong's dictionary data from OpenScriptures, used under CC BY-SA."
 
+## Reading schedule
+
+- **The Bible Companion** — the daily reading plan compiled by **Robert Roberts**
+  (1839–1898), Public Domain. The whole Bible in a year: Old Testament once, New
+  Testament twice, in three daily portions.
+  Chapter/verse table transcribed from
+  [dawnchristadelphians.ca/companion](https://dawnchristadelphians.ca/companion/preface.html).
+  Two transcription typos are corrected in `data/build-companion.mjs`.
+
 ## Pending / not yet bundled
 
 - Translators' marginal notes / alternate readings ("Or, …").

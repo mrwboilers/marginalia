@@ -57,6 +57,22 @@ export interface LexEntry {
   u?: string;
 }
 
+/**
+ * One of a day's three Bible Companion portions (Robert Roberts' reading plan).
+ * `start` (+ bookId) is where a click navigates; `label` is the printed range;
+ * `chapters` lists every chapter it spans. Verse fields appear only where the plan
+ * splits a long chapter (Psalm 119).
+ */
+export interface CompanionPortion {
+  bookId: number;
+  book: string;
+  label: string;
+  start: number;
+  chapters: number[];
+  verseStart?: number;
+  verseEnd?: number;
+}
+
 export type ToolMode = 'read' | 'highlight' | 'underline' | 'note' | 'erase';
 export type MarkType = 'highlight' | 'underline';
 

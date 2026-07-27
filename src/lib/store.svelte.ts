@@ -1,9 +1,10 @@
 import type {
-  BookMeta, Layer, Mark, MarkingsExport, Note, SearchHit, StrongSeg, ToolMode, Verse, Xref,
+  BookMeta, CompanionPortion, Layer, Mark, MarkingsExport, Note, SearchHit, StrongSeg, ToolMode, Verse, Xref,
 } from './types';
 import { HIGHLIGHT_COLORS } from './types';
 import { DEFAULT_LAYERS, getProvider, type BibleProvider } from './provider';
 import { loadLexicon, loadStrongsChapter } from './provider/strongs';
+import { companionKeys, companionLabel, keyFor, loadCompanion, readingsFor } from './provider/companion';
 import { parseRef } from './books';
 
 /** A rendered Strong's item: a styled text piece or a Strong's number marker. */
@@ -52,6 +53,12 @@ class AppState {
   searching = $state(false);
   searchResults = $state<SearchHit[]>([]);
 
+  // Bible Companion (Robert Roberts' reading plan).
+  companionOpen = $state(false);
+  companionKey = $state('1-1');       // the day being viewed ("month-day")
+  companionTodayKey = $state('1-1');  // the real current calendar day
+  companionProgress = $state<Set<string>>(new Set());
+
   private noteTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   book = $derived(this.books.find((b) => b.id === this.bookId));
@@ -63,6 +70,14 @@ class AppState {
       .filter((n) => n.bookId === this.bookId && n.chapter === this.chapter)
       .filter((n) => this.visibleLayerIds.has(n.layerId))
       .sort((a, b) => a.verse - b.verse)
+  );
+
+  companionReadings = $derived(readingsFor(this.companionKey));
+  companionDateLabel = $derived(companionLabel(this.companionKey));
+  companionIsToday = $derived(this.companionKey === this.companionTodayKey);
+  companionDayDone = $derived(
+    this.companionReadings.length > 0 &&
+      this.companionReadings.every((_, i) => this.companionProgress.has(`${this.companionKey}:${i}`))
   );
 
   async init() {
@@ -90,6 +105,13 @@ class AppState {
     this.marks = data.marks;
     this.notes = data.notes;
     this.activeLayerId = KEEP;
+
+    await loadCompanion();
+    const now = new Date();
+    this.companionTodayKey = keyFor(now.getMonth() + 1, now.getDate());
+    this.companionKey = this.companionTodayKey;
+    this.companionProgress = new Set(await this.provider.loadReadingProgress());
+
     await this.loadChapter(this.bookId, this.chapter);
     this.ready = true;
   }
@@ -325,6 +347,49 @@ class AppState {
   goToHit(hit: SearchHit) {
     this.searchOpen = false;
     this.goTo(hit.bookId, hit.chapter);
+  }
+
+  // --- Bible Companion -----------------------------------------------------
+  openCompanion() {
+    this.companionKey = this.companionTodayKey; // always land on today
+    this.companionOpen = true;
+  }
+  closeCompanion() {
+    this.companionOpen = false;
+  }
+  companionToday() {
+    this.companionKey = this.companionTodayKey;
+  }
+  /** Step to the previous/next scheduled day, wrapping around the year. */
+  companionStep(delta: number) {
+    const keys = companionKeys();
+    const i = keys.indexOf(this.companionKey);
+    if (i < 0) return;
+    this.companionKey = keys[(i + delta + keys.length) % keys.length];
+  }
+  isReadingDone(index: number): boolean {
+    return this.companionProgress.has(`${this.companionKey}:${index}`);
+  }
+  toggleReadingDone(index: number) {
+    const key = `${this.companionKey}:${index}`;
+    const done = !this.companionProgress.has(key);
+    const next = new Set(this.companionProgress);
+    if (done) next.add(key);
+    else next.delete(key);
+    this.companionProgress = next;
+    void this.provider?.setReadingDone(key, done);
+  }
+  /** Check or uncheck all of the current day's portions at once. */
+  toggleDayDone() {
+    const target = !this.companionDayDone;
+    this.companionReadings.forEach((_, i) => {
+      if (this.isReadingDone(i) !== target) this.toggleReadingDone(i);
+    });
+  }
+  /** Open a portion in the reading view (navigates to its first chapter). */
+  openReading(portion: CompanionPortion) {
+    this.companionOpen = false;
+    this.goTo(portion.bookId, portion.start);
   }
 
   // --- Cross-reference lookup (hover preview + click to navigate) ----------
