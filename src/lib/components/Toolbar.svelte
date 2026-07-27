@@ -111,9 +111,7 @@
     </div>
 
     <div class="group">
-      <button class="btn" onclick={() => (app.redLetter = !app.redLetter)}>
-        Red letter: {app.redLetter ? 'on' : 'off'}
-      </button>
+      <!-- Red-letter toggle hidden until a words-of-Christ dataset is bundled (it was inert). -->
       <button class="btn" class:active={app.strongsOn} onclick={() => app.toggleStrongs()}>
         Strong's: {app.strongsOn ? 'on' : 'off'}
       </button>
