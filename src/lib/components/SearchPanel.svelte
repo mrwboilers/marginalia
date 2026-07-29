@@ -13,16 +13,35 @@
   function onKey(e: KeyboardEvent) {
     if (e.key === 'Escape') app.closeSearch();
   }
+
+  const notesMode = $derived(app.searchMode === 'notes');
 </script>
 
 <svelte:window onkeydown={onKey} />
 
 <div class="overlay" onclick={() => app.closeSearch()} role="presentation">
   <div class="panel" onclick={(e) => e.stopPropagation()} role="dialog" aria-label="Search">
+    <div class="tabs" role="tablist">
+      <button
+        class="tab"
+        class:active={!notesMode}
+        role="tab"
+        aria-selected={!notesMode}
+        onclick={() => app.setSearchMode('scripture')}
+      >Scripture</button>
+      <button
+        class="tab"
+        class:active={notesMode}
+        role="tab"
+        aria-selected={notesMode}
+        onclick={() => app.setSearchMode('notes')}
+      >My notes</button>
+    </div>
+
     <div class="search-head">
       <input
         class="search-input"
-        placeholder="Search the KJV…"
+        placeholder={notesMode ? 'Search your notes…' : 'Search the KJV…'}
         value={query}
         oninput={onInput}
         autofocus
@@ -31,7 +50,21 @@
     </div>
 
     <div class="results">
-      {#if app.searching}
+      {#if notesMode}
+        {#if query.trim() && app.noteResults.length === 0}
+          <p class="status">No notes match “{query}”.</p>
+        {:else if app.noteResults.length}
+          <p class="count">{app.noteResults.length} note{app.noteResults.length === 1 ? '' : 's'}</p>
+          {#each app.noteResults as hit (hit.noteId)}
+            <button class="hit" onclick={() => app.goToNoteHit(hit)}>
+              <span class="ref">{hit.bookName} {hit.chapter}:{hit.verse}</span>
+              <span class="text">{hit.snippet}</span>
+            </button>
+          {/each}
+        {:else}
+          <p class="status">Type to search the notes you’ve written.</p>
+        {/if}
+      {:else if app.searching}
         <p class="status">Searching…</p>
       {:else if query.trim() && app.searchResults.length === 0}
         <p class="status">No results for “{query}”.</p>
@@ -72,6 +105,30 @@
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     overflow: hidden;
     font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+  .tabs {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.6rem 0.9rem 0;
+    border-bottom: 1px solid #ddd2bd;
+  }
+  .tab {
+    font: inherit;
+    font-size: 0.8rem;
+    padding: 0.4rem 0.8rem;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: none;
+    color: #8a7c66;
+    cursor: pointer;
+  }
+  .tab:hover {
+    color: #2b2520;
+  }
+  .tab.active {
+    color: #2b2520;
+    border-bottom-color: #7a5230;
+    font-weight: 600;
   }
   .search-head {
     display: flex;

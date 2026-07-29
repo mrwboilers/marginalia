@@ -5,6 +5,7 @@ import { HIGHLIGHT_COLORS } from './types';
 import { DEFAULT_LAYERS, getProvider, type BibleProvider } from './provider';
 import { loadLexicon, loadStrongsChapter } from './provider/strongs';
 import { companionKeys, companionLabel, keyFor, loadCompanion, readingsFor } from './provider/companion';
+import { matchNotes, type NoteHit } from './notesearch';
 import { parseRef } from './books';
 
 /** A rendered Strong's item: a styled text piece or a Strong's number marker. */
@@ -52,6 +53,8 @@ class AppState {
   searchQuery = $state('');
   searching = $state(false);
   searchResults = $state<SearchHit[]>([]);
+  searchMode = $state<'scripture' | 'notes'>('scripture');
+  noteResults = $state<NoteHit[]>([]);
 
   // Bible Companion (Robert Roberts' reading plan).
   companionOpen = $state(false);
@@ -334,6 +337,10 @@ class AppState {
   }
   async runSearch(query: string) {
     this.searchQuery = query;
+    if (this.searchMode === 'notes') {
+      this.runNoteSearch(query);
+      return;
+    }
     if (!query.trim() || !this.provider) {
       this.searchResults = [];
       return;
@@ -345,7 +352,20 @@ class AppState {
       this.searching = false;
     }
   }
+  /** Search the user's own notes (in memory — no provider round-trip). */
+  runNoteSearch(query: string) {
+    this.noteResults = matchNotes(this.notes, query, (id) => this.books.find((b) => b.id === id)?.name ?? '');
+  }
+  setSearchMode(mode: 'scripture' | 'notes') {
+    if (mode === this.searchMode) return;
+    this.searchMode = mode;
+    void this.runSearch(this.searchQuery);
+  }
   goToHit(hit: SearchHit) {
+    this.searchOpen = false;
+    this.goTo(hit.bookId, hit.chapter);
+  }
+  goToNoteHit(hit: NoteHit) {
     this.searchOpen = false;
     this.goTo(hit.bookId, hit.chapter);
   }
