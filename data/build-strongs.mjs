@@ -13,6 +13,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { tokenize, plainOf, reconcile } from './strongs-tokenize.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'static', 'strongs');
@@ -23,28 +24,6 @@ async function fetchJson(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${res.status} for ${url}`);
   return res.json();
-}
-
-/** Split a tagged "en" string into [{ t, s? }] segments. */
-function tokenize(en) {
-  const clean = en.replace(/<\/?em>/g, '');
-  const re = /([^[]*)((?:\[[HG]\d+\])+)/g;
-  const segs = [];
-  let last = 0;
-  let m;
-  while ((m = re.exec(clean))) {
-    const tags = m[2].match(/[HG]\d+/g);
-    segs.push(m[1] ? { t: m[1], s: tags } : { t: '', s: tags });
-    last = re.lastIndex;
-  }
-  const tail = clean.slice(last);
-  if (tail) segs.push({ t: tail });
-  // Merge any empty-text segments into the previous (keeps offsets clean).
-  return segs.filter((seg) => seg.t.length > 0 || seg.s);
-}
-
-function plainOf(segs) {
-  return segs.map((s) => s.t).join('');
 }
 
 async function main() {
@@ -124,10 +103,12 @@ async function main() {
       } catch {
         en = m[3];
       }
-      const segs = tokenize(en);
-      const plain = plainOf(segs).replace(/\s+/g, ' ').trim();
-      const dbt = (dbMap.get(`${ch}|${v}`) || '').replace(/\s+/g, ' ').trim();
-      if (dbt && plain !== dbt) mismatches++;
+      // Re-tile tokens over the authoritative DB text so the Strong's rendering
+      // shows the full, correct verse and character offsets line up with normal
+      // rendering (letting marks be created/shown with Strong's on).
+      const dbt = dbMap.get(`${ch}|${v}`);
+      const segs = dbt ? reconcile(tokenize(en), dbt) : tokenize(en);
+      if (dbt && plainOf(segs) !== dbt) mismatches++;
       (out[ch] ??= []).push([v, segs]);
       verses++;
     }

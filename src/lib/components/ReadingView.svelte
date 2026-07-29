@@ -25,11 +25,22 @@
   const rightNotes = $derived(app.currentNotes.filter((n) => !leftVerseNums.has(n.verse)));
 
   // --- Marking (selection → verse+offset) ----------------------------------
+  // In Strong's mode the verse text is split across `.piece` spans interleaved with
+  // inline Strong's-number <sup>s (and template whitespace); character offsets anchor
+  // to the verse text alone, so count only `.piece` content.
   function offsetWithin(container: HTMLElement, node: Node, nodeOffset: number): number {
     const range = document.createRange();
     range.setStart(container, 0);
     range.setEnd(node, nodeOffset);
-    return range.toString().length;
+    if (!app.strongsOn) return range.toString().length;
+    let n = 0;
+    for (const p of range.cloneContents().querySelectorAll('.piece')) n += (p.textContent ?? '').length;
+    return n;
+  }
+  /** A verse's plain text (just the `.piece` spans, excluding Strong's-number sups). */
+  function verseTextOf(el: HTMLElement): string {
+    if (!app.strongsOn) return el.textContent ?? '';
+    return [...el.querySelectorAll<HTMLElement>('.piece')].map((p) => p.textContent ?? '').join('');
   }
   function vtextOf(node: Node | null): HTMLElement | null {
     const el = node instanceof HTMLElement ? node : node?.parentElement ?? null;
@@ -46,8 +57,6 @@
 
   function onMouseUp() {
     if (app.tool !== 'highlight' && app.tool !== 'underline') return;
-    // Inline Strong's numbers would throw off character offsets — mark with them off.
-    if (app.strongsOn) return;
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0 || !contentEl) return;
     const range = sel.getRangeAt(0);
@@ -55,13 +64,13 @@
       const el = vtextOf(range.startContainer);
       if (!el) return;
       const caret = offsetWithin(el, range.startContainer, range.startOffset);
-      const word = wordRange(el.textContent ?? '', caret);
+      const word = wordRange(verseTextOf(el), caret);
       if (word) app.addMark(Number(el.dataset.v), word[0], word[1]);
       return;
     }
     for (const el of contentEl.querySelectorAll<HTMLElement>('.vtext')) {
       if (!range.intersectsNode(el)) continue;
-      const len = (el.textContent ?? '').length;
+      const len = verseTextOf(el).length;
       const start = el.contains(range.startContainer)
         ? offsetWithin(el, range.startContainer, range.startOffset)
         : 0;
