@@ -50,6 +50,8 @@ class AppState {
   searchResults = $state<SearchHit[]>([]);
   searchMode = $state<'scripture' | 'notes'>('scripture');
   noteResults = $state<NoteHit[]>([]);
+  noteTagFilter = $state<string | null>(null);
+  allNoteTags = $derived([...new Set(this.notes.flatMap((n) => n.tags ?? []))].sort());
 
   bookmarks = $state<Bookmark[]>([]);
   bookmarksOpen = $state(false);
@@ -316,6 +318,21 @@ class AppState {
     void this.provider?.deleteNote(id);
   }
 
+  setNoteTags(id: string, tags: string[]) {
+    // Normalize: trim, drop blanks, de-dupe (case-insensitively, keeping first form).
+    const seen = new Set<string>();
+    const clean = tags
+      .map((t) => t.trim())
+      .filter((t) => t && !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase()));
+    let updated: Note | undefined;
+    this.notes = this.notes.map((n) => {
+      if (n.id !== id) return n;
+      updated = { ...n, tags: clean };
+      return updated;
+    });
+    if (updated) void this.provider?.upsertNote(updated);
+  }
+
   private applicableMarks(v: number): Mark[] {
     return this.marks.filter(
       (m) =>
@@ -381,7 +398,17 @@ class AppState {
   }
   /** Search the user's own notes (in memory — no provider round-trip). */
   runNoteSearch(query: string) {
-    this.noteResults = matchNotes(this.notes, query, (id) => this.books.find((b) => b.id === id)?.name ?? '');
+    this.noteResults = matchNotes(
+      this.notes,
+      query,
+      (id) => this.books.find((b) => b.id === id)?.name ?? '',
+      this.noteTagFilter
+    );
+  }
+  /** Toggle a tag filter in the notes search and re-run. */
+  setNoteTagFilter(tag: string | null) {
+    this.noteTagFilter = this.noteTagFilter === tag ? null : tag;
+    this.runNoteSearch(this.searchQuery);
   }
   setSearchMode(mode: 'scripture' | 'notes') {
     if (mode === this.searchMode) return;

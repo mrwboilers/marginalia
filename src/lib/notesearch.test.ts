@@ -50,6 +50,33 @@ describe('matchNotes', () => {
     expect(matchNotes(notes, 'zzz', bookName)).toEqual([]);
   });
 
+  it('matches a query against tags as well as text', () => {
+    const tagged: Note[] = [note({ id: 't', bookId: 1, chapter: 1, verse: 1, body: 'plain body', tags: ['grace', 'mercy'] })];
+    expect(matchNotes(tagged, 'mercy', bookName).map((h) => h.noteId)).toEqual(['t']);
+  });
+
+  it('filters by a tag (with no query returns all notes carrying it)', () => {
+    const tagged: Note[] = [
+      note({ id: 'a', bookId: 1, chapter: 1, verse: 1, body: 'x', tags: ['faith'] }),
+      note({ id: 'b', bookId: 2, chapter: 1, verse: 1, body: 'y', tags: ['hope'] }),
+      note({ id: 'c', bookId: 3, chapter: 1, verse: 1, body: 'z', tags: ['faith', 'hope'] }),
+    ];
+    expect(matchNotes(tagged, '', bookName, 'faith').map((h) => h.noteId)).toEqual(['a', 'c']);
+  });
+
+  it('combines a tag filter with a text query', () => {
+    const tagged: Note[] = [
+      note({ id: 'a', bookId: 1, chapter: 1, verse: 1, body: 'love one another', tags: ['faith'] }),
+      note({ id: 'b', bookId: 2, chapter: 1, verse: 1, body: 'love the Lord', tags: ['hope'] }),
+    ];
+    expect(matchNotes(tagged, 'love', bookName, 'faith').map((h) => h.noteId)).toEqual(['a']);
+  });
+
+  it('carries a note’s tags on each hit', () => {
+    const tagged: Note[] = [note({ id: 'a', bookId: 1, chapter: 1, verse: 1, body: 'x', tags: ['faith'] })];
+    expect(matchNotes(tagged, 'x', bookName)[0].tags).toEqual(['faith']);
+  });
+
   it('sorts results in canonical book/chapter/verse order', () => {
     const many: Note[] = [
       note({ id: 'x', bookId: 43, chapter: 3, verse: 16, body: 'love' }),

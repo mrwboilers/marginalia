@@ -24,6 +24,26 @@
     }
   });
 
+  let tagInput = $state('');
+  const tags = $derived(note.tags ?? []);
+
+  function addTag(raw: string) {
+    const t = raw.trim().replace(/,+$/, '').trim();
+    if (t) app.setNoteTags(note.id, [...tags, t]);
+    tagInput = '';
+  }
+  function removeTag(t: string) {
+    app.setNoteTags(note.id, tags.filter((x) => x !== t));
+  }
+  function onTagKey(e: KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addTag(tagInput);
+    } else if (e.key === 'Backspace' && !tagInput && tags.length) {
+      removeTag(tags[tags.length - 1]);
+    }
+  }
+
   const layerColor = $derived(app.layers.find((l) => l.id === note.layerId)?.color ?? '#8a7c66');
   const isHtml = $derived(note.format === 'html');
   const hasBody = $derived(isHtml ? !isHtmlEmpty(note.body) : note.body.trim().length > 0);
@@ -76,7 +96,19 @@
         html={isHtml ? note.body : textToHtml(note.body)}
         onchange={(h) => app.updateNote(note.id, h, 'html')}
       />
-      <div class="hint"><kbd>Esc</kbd> or <kbd>Done</kbd> to save · paste or drop an image to embed it</div>
+      <div class="tags">
+        {#each tags as t (t)}
+          <span class="tag">{t}<button class="tagx" aria-label={`Remove tag ${t}`} onclick={() => removeTag(t)}>×</button></span>
+        {/each}
+        <input
+          class="taginput"
+          placeholder={tags.length ? 'Add tag…' : 'Add tags…'}
+          bind:value={tagInput}
+          onkeydown={onTagKey}
+          onblur={() => addTag(tagInput)}
+        />
+      </div>
+      <div class="hint"><kbd>Esc</kbd> or <kbd>Done</kbd> to save · <kbd>Enter</kbd> adds a tag · paste or drop an image</div>
     </div>
   {:else if hovered && hasBody}
     <div class="pop read" style={`--layer:${layerColor}`}>
@@ -237,6 +269,46 @@
   }
   .link:hover {
     text-decoration: underline;
+  }
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem;
+    margin-top: 0.5rem;
+  }
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    font-size: 0.72rem;
+    padding: 0.12rem 0.2rem 0.12rem 0.45rem;
+    border-radius: 999px;
+    background: #efe7d6;
+    color: #5f5344;
+  }
+  .tagx {
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: #a2937a;
+    font-size: 0.9rem;
+    line-height: 1;
+    padding: 0 0.15rem;
+  }
+  .tagx:hover {
+    color: #b03a2e;
+  }
+  .taginput {
+    flex: 1;
+    min-width: 5rem;
+    font: inherit;
+    font-size: 0.78rem;
+    padding: 0.2rem 0.35rem;
+    border: 1px solid #e0d6c0;
+    border-radius: 6px;
+    background: #fffefb;
+    color: #2b2520;
   }
   .hint {
     margin-top: 0.4rem;

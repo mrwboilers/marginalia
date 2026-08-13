@@ -104,6 +104,8 @@ export interface Note {
   body: string;
   /** Absent/`'text'` = legacy plain text; `'html'` = rich text (may embed images). */
   format?: 'text' | 'html';
+  /** Topical tags for grouping/finding notes. */
+  tags?: string[];
   layerId: string;
 }
 

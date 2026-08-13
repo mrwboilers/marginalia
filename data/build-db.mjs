@@ -89,7 +89,7 @@ async function main() {
     CREATE TABLE notes (
       id TEXT PRIMARY KEY, book_id INTEGER NOT NULL, chapter INTEGER NOT NULL,
       verse INTEGER NOT NULL, body TEXT NOT NULL, layer_id TEXT NOT NULL,
-      format TEXT, created TEXT NOT NULL, updated TEXT NOT NULL
+      format TEXT, tags TEXT, created TEXT NOT NULL, updated TEXT NOT NULL
     );
     CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 

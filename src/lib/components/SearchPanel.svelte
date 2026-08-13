@@ -51,18 +51,28 @@
 
     <div class="results">
       {#if notesMode}
-        {#if query.trim() && app.noteResults.length === 0}
-          <p class="status">No notes match “{query}”.</p>
+        {#if app.allNoteTags.length}
+          <div class="tagfilter">
+            {#each app.allNoteTags as t (t)}
+              <button class="tagchip" class:on={app.noteTagFilter === t} onclick={() => app.setNoteTagFilter(t)}>{t}</button>
+            {/each}
+          </div>
+        {/if}
+        {#if (query.trim() || app.noteTagFilter) && app.noteResults.length === 0}
+          <p class="status">No notes match.</p>
         {:else if app.noteResults.length}
           <p class="count">{app.noteResults.length} note{app.noteResults.length === 1 ? '' : 's'}</p>
           {#each app.noteResults as hit (hit.noteId)}
             <button class="hit" onclick={() => app.goToNoteHit(hit)}>
               <span class="ref">{hit.bookName} {hit.chapter}:{hit.verse}</span>
               <span class="text">{hit.snippet}</span>
+              {#if hit.tags.length}
+                <span class="hittags">{#each hit.tags as t (t)}<span class="hittag">{t}</span>{/each}</span>
+              {/if}
             </button>
           {/each}
         {:else}
-          <p class="status">Type to search the notes you’ve written.</p>
+          <p class="status">Type to search your notes{app.allNoteTags.length ? ', or pick a tag above' : ''}.</p>
         {/if}
       {:else if app.searching}
         <p class="status">Searching…</p>
@@ -163,6 +173,46 @@
   .results {
     overflow-y: auto;
     padding: 0.5rem;
+  }
+  .tagfilter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    padding: 0.3rem 0.5rem 0.55rem;
+    border-bottom: 1px solid #eee3ce;
+    margin-bottom: 0.3rem;
+  }
+  .tagchip {
+    font: inherit;
+    font-size: 0.72rem;
+    padding: 0.15rem 0.55rem;
+    border: 1px solid #d8ccb4;
+    border-radius: 999px;
+    background: #fffdf8;
+    color: #6b5d4b;
+    cursor: pointer;
+  }
+  .tagchip:hover {
+    border-color: #a4906f;
+  }
+  .tagchip.on {
+    background: #7a5230;
+    color: #f4efe2;
+    border-color: #7a5230;
+  }
+  .hittags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+  }
+  .hittag {
+    font-family: system-ui, sans-serif;
+    font-size: 0.65rem;
+    padding: 0.05rem 0.4rem;
+    border-radius: 999px;
+    background: #efe7d6;
+    color: #7a6a52;
   }
   .status,
   .count {

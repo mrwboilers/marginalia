@@ -10,6 +10,7 @@ export interface NoteHit {
   verse: number;
   /** A plain-text excerpt of the note around the first match. */
   snippet: string;
+  tags: string[];
 }
 
 /** The searchable plain text of a note (HTML stripped for rich notes). */
@@ -48,24 +49,31 @@ export function makeSnippet(text: string, terms: string[], max = 140): string {
 }
 
 /**
- * Search notes by their text content. All whitespace-separated terms must be
- * present (AND), matching the scripture search. Results are in canonical order.
+ * Search notes by text content and/or a tag. All whitespace-separated query
+ * terms must be present (AND, matched against the note text and its tags); if
+ * `tag` is given, the note must also carry that tag. With neither a query nor a
+ * tag, nothing matches. Results are in canonical order.
  */
 export function matchNotes(
   notes: Note[],
   query: string,
-  bookName: (bookId: number) => string
+  bookName: (bookId: number) => string,
+  tag?: string | null
 ): NoteHit[] {
   const q = query.trim().toLowerCase();
-  if (!q) return [];
-  const terms = q.split(/\s+/);
+  const terms = q ? q.split(/\s+/) : [];
+  if (!terms.length && !tag) return [];
 
   const hits: NoteHit[] = [];
   for (const note of notes) {
+    const tags = note.tags ?? [];
+    if (tag && !tags.includes(tag)) continue;
     const text = noteText(note);
-    if (!text) continue;
-    const lower = text.toLowerCase();
-    if (!terms.every((t) => lower.includes(t))) continue;
+    if (!text && !tags.length) continue;
+    if (terms.length) {
+      const searchable = `${text} ${tags.join(' ')}`.toLowerCase();
+      if (!terms.every((t) => searchable.includes(t))) continue;
+    }
     hits.push({
       noteId: note.id,
       bookId: note.bookId,
@@ -73,6 +81,7 @@ export function matchNotes(
       chapter: note.chapter,
       verse: note.verse,
       snippet: makeSnippet(text, terms),
+      tags,
     });
   }
   hits.sort((a, b) => a.bookId - b.bookId || a.chapter - b.chapter || a.verse - b.verse);

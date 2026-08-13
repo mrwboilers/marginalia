@@ -5,6 +5,17 @@ import { loadChapterXrefs } from './xrefs';
 
 const TRANSLATION_ID = 1; // KJV
 
+/** Notes store tags as a JSON array string; tolerate null/legacy values. */
+function parseTags(raw: string | null): string[] | undefined {
+  if (!raw) return undefined;
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) && arr.length ? arr : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** SQLite-backed provider (the real, offline app). */
 export class SqlProvider implements BibleProvider {
   private db!: Database;
@@ -16,10 +27,13 @@ export class SqlProvider implements BibleProvider {
     await this.db.execute(
       `CREATE TABLE IF NOT EXISTS reading_progress (key TEXT PRIMARY KEY, done_at TEXT NOT NULL)`
     );
-    // Migration for DBs copied before rich-text notes: add the format column.
+    // Migrations for DBs copied before newer note columns existed.
     const cols = await this.db.select<{ name: string }[]>(`PRAGMA table_info(notes)`);
     if (!cols.some((c) => c.name === 'format')) {
       await this.db.execute(`ALTER TABLE notes ADD COLUMN format TEXT`);
+    }
+    if (!cols.some((c) => c.name === 'tags')) {
+      await this.db.execute(`ALTER TABLE notes ADD COLUMN tags TEXT`);
     }
     // Migration for DBs copied before bookmarks existed.
     await this.db.execute(
@@ -85,15 +99,21 @@ export class SqlProvider implements BibleProvider {
        FROM marks`
     );
     const notes = await this.db.select<
-      { id: string; bookId: number; chapter: number; verse: number; body: string; format: string | null; layerId: string }[]
-    >(`SELECT id, book_id AS bookId, chapter, verse, body, format, layer_id AS layerId FROM notes`);
+      { id: string; bookId: number; chapter: number; verse: number; body: string; format: string | null; tags: string | null; layerId: string }[]
+    >(`SELECT id, book_id AS bookId, chapter, verse, body, format, tags, layer_id AS layerId FROM notes`);
 
     return {
       layers: layers.map((l) => ({ ...l, visible: !!l.visible })),
       marks: marks as Mark[],
       notes: notes.map((n) => ({
-        ...n,
+        id: n.id,
+        bookId: n.bookId,
+        chapter: n.chapter,
+        verse: n.verse,
+        body: n.body,
         format: n.format === 'html' ? 'html' : 'text',
+        tags: parseTags(n.tags),
+        layerId: n.layerId,
       })) as Note[],
     };
   }
@@ -118,11 +138,12 @@ export class SqlProvider implements BibleProvider {
   async upsertNote(n: Note): Promise<void> {
     const now = new Date().toISOString();
     const format = n.format ?? 'text';
+    const tags = n.tags && n.tags.length ? JSON.stringify(n.tags) : null;
     await this.db.execute(
-      `INSERT INTO notes (id, book_id, chapter, verse, body, format, layer_id, created, updated)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8)
-       ON CONFLICT(id) DO UPDATE SET body=$5, format=$6, layer_id=$7, updated=$8`,
-      [n.id, n.bookId, n.chapter, n.verse, n.body, format, n.layerId, now]
+      `INSERT INTO notes (id, book_id, chapter, verse, body, format, tags, layer_id, created, updated)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9)
+       ON CONFLICT(id) DO UPDATE SET body=$5, format=$6, tags=$7, layer_id=$8, updated=$9`,
+      [n.id, n.bookId, n.chapter, n.verse, n.body, format, tags, n.layerId, now]
     );
   }
 
