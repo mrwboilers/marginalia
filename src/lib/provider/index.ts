@@ -1,4 +1,4 @@
-import type { BookMeta, Layer, Mark, Note, SearchHit, UserData, Verse, Xref } from '../types';
+import type { Bookmark, BookMeta, Layer, Mark, Note, SearchHit, UserData, Verse, Xref } from '../types';
 
 /**
  * Storage/content backend. Two implementations:
@@ -25,6 +25,17 @@ export interface BibleProvider {
   // ("<month>-<day>:<portionIndex>"), stored separately from markings.
   loadReadingProgress(): Promise<string[]>;
   setReadingDone(key: string, done: boolean): Promise<void>;
+  replaceReadingProgress(keys: string[]): Promise<void>;
+
+  // Small key/value settings (last position, font size, …).
+  loadSettings(): Promise<Record<string, string>>;
+  saveSetting(key: string, value: string): Promise<void>;
+
+  // Saved places.
+  loadBookmarks(): Promise<Bookmark[]>;
+  addBookmark(bm: Bookmark): Promise<void>;
+  deleteBookmark(id: string): Promise<void>;
+  replaceBookmarks(bms: Bookmark[]): Promise<void>;
 }
 
 export const DEFAULT_LAYERS: Layer[] = [

@@ -1,5 +1,5 @@
 import Database from '@tauri-apps/plugin-sql';
-import type { BookMeta, Mark, Note, SearchHit, UserData, Verse, Xref } from '../types';
+import type { Bookmark, BookMeta, Mark, Note, SearchHit, UserData, Verse, Xref } from '../types';
 import type { BibleProvider } from './index';
 import { loadChapterXrefs } from './xrefs';
 
@@ -21,6 +21,13 @@ export class SqlProvider implements BibleProvider {
     if (!cols.some((c) => c.name === 'format')) {
       await this.db.execute(`ALTER TABLE notes ADD COLUMN format TEXT`);
     }
+    // Migration for DBs copied before bookmarks existed.
+    await this.db.execute(
+      `CREATE TABLE IF NOT EXISTS bookmarks (
+         id TEXT PRIMARY KEY, book_id INTEGER NOT NULL, chapter INTEGER NOT NULL,
+         label TEXT NOT NULL, created TEXT NOT NULL
+       )`
+    );
   }
 
   async books(): Promise<BookMeta[]> {
@@ -164,5 +171,49 @@ export class SqlProvider implements BibleProvider {
     } else {
       await this.db.execute(`DELETE FROM reading_progress WHERE key = $1`, [key]);
     }
+  }
+
+  async replaceReadingProgress(keys: string[]): Promise<void> {
+    await this.db.execute(`DELETE FROM reading_progress`);
+    const now = new Date().toISOString();
+    for (const key of keys) {
+      await this.db.execute(`INSERT OR IGNORE INTO reading_progress (key, done_at) VALUES ($1, $2)`, [key, now]);
+    }
+  }
+
+  async loadSettings(): Promise<Record<string, string>> {
+    const rows = await this.db.select<{ key: string; value: string }[]>(`SELECT key, value FROM settings`);
+    return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  }
+
+  async saveSetting(key: string, value: string): Promise<void> {
+    await this.db.execute(
+      `INSERT INTO settings (key, value) VALUES ($1, $2)
+       ON CONFLICT(key) DO UPDATE SET value = $2`,
+      [key, value]
+    );
+  }
+
+  async loadBookmarks(): Promise<Bookmark[]> {
+    return this.db.select<Bookmark[]>(
+      `SELECT id, book_id AS bookId, chapter, label, created FROM bookmarks ORDER BY book_id, chapter`
+    );
+  }
+
+  async addBookmark(bm: Bookmark): Promise<void> {
+    await this.db.execute(
+      `INSERT INTO bookmarks (id, book_id, chapter, label, created) VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT(id) DO UPDATE SET book_id=$2, chapter=$3, label=$4`,
+      [bm.id, bm.bookId, bm.chapter, bm.label, bm.created]
+    );
+  }
+
+  async deleteBookmark(id: string): Promise<void> {
+    await this.db.execute(`DELETE FROM bookmarks WHERE id = $1`, [id]);
+  }
+
+  async replaceBookmarks(bms: Bookmark[]): Promise<void> {
+    await this.db.execute(`DELETE FROM bookmarks`);
+    for (const bm of bms) await this.addBookmark(bm);
   }
 }

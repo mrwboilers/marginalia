@@ -95,6 +95,12 @@ async function main() {
 
     -- Bible Companion reading progress: "done" portion keys ("<month>-<day>:<i>").
     CREATE TABLE reading_progress (key TEXT PRIMARY KEY, done_at TEXT NOT NULL);
+
+    -- Saved places.
+    CREATE TABLE bookmarks (
+      id TEXT PRIMARY KEY, book_id INTEGER NOT NULL, chapter INTEGER NOT NULL,
+      label TEXT NOT NULL, created TEXT NOT NULL
+    );
   `);
 
   db.prepare(

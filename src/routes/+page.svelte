@@ -5,6 +5,7 @@
   import ReadingView from '$lib/components/ReadingView.svelte';
   import SearchPanel from '$lib/components/SearchPanel.svelte';
   import CompanionPanel from '$lib/components/CompanionPanel.svelte';
+  import BookmarksPanel from '$lib/components/BookmarksPanel.svelte';
 
   let error = $state('');
 
@@ -35,6 +36,9 @@
   {/if}
   {#if app.companionOpen}
     <CompanionPanel />
+  {/if}
+  {#if app.bookmarksOpen}
+    <BookmarksPanel />
   {/if}
 {/if}
 

@@ -107,6 +107,17 @@ export interface Note {
   layerId: string;
 }
 
+/** A saved place in the Bible (whole chapter). */
+export interface Bookmark {
+  id: string;
+  bookId: number;
+  chapter: number;
+  /** Display label, e.g. "Genesis 1". */
+  label: string;
+  /** ISO timestamp. */
+  created: string;
+}
+
 /** A show/hide-able marking layer ("Study", "Sermon", ...). */
 export interface Layer {
   id: string;
@@ -125,11 +136,14 @@ export interface UserData {
 
 /** The exportable/importable user-data bundle (the data-ownership promise). */
 export interface MarkingsExport {
-  version: 2;
+  /** 2 = markings only; 3 adds reading progress + bookmarks. */
+  version: 2 | 3;
   exportedAt: string;
   layers: Layer[];
   marks: Mark[];
   notes: Note[];
+  readingProgress?: string[];
+  bookmarks?: Bookmark[];
 }
 
 /** The six highlighter colors shown in the toolbar. */

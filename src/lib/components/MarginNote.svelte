@@ -13,6 +13,16 @@
 
   let editing = $state(false);
   let hovered = $state(false);
+  let mnoteEl: HTMLDivElement | undefined = $state();
+  let flipUp = $state(false);
+
+  // When the editor opens, expand it upward if the note sits in the lower half of
+  // the viewport, so the (tall) rich editor doesn't run off the bottom of a page.
+  $effect(() => {
+    if (editing && mnoteEl) {
+      flipUp = mnoteEl.getBoundingClientRect().top > window.innerHeight * 0.5;
+    }
+  });
 
   const layerColor = $derived(app.layers.find((l) => l.id === note.layerId)?.color ?? '#8a7c66');
   const isHtml = $derived(note.format === 'html');
@@ -36,6 +46,7 @@
   class="mnote {side}"
   style={`top:${top}px`}
   role="note"
+  bind:this={mnoteEl}
   onmouseenter={() => (hovered = true)}
   onmouseleave={() => (hovered = false)}
 >
@@ -53,7 +64,7 @@
   </button>
 
   {#if editing}
-    <div class="pop editor" style={`--layer:${layerColor}`} onkeydown={(e) => { if (e.key === 'Escape') close(); }} role="presentation">
+    <div class="pop editor" class:flip={flipUp} style={`--layer:${layerColor}`} onkeydown={(e) => { if (e.key === 'Escape') close(); }} role="presentation">
       <div class="pop-head">
         <span class="ref">{app.book?.name ?? ''} {note.chapter}:{note.verse}</span>
         <div class="actions">
@@ -149,6 +160,11 @@
   .pop.editor {
     width: 440px;
     max-width: 60vw;
+  }
+  /* Anchor to the note's bottom so a low note's editor grows upward, not off-page. */
+  .pop.editor.flip {
+    top: auto;
+    bottom: -0.35rem;
   }
   /* Expand toward the text (inward) so the card never runs off the page edge. */
   .mnote.right .pop {

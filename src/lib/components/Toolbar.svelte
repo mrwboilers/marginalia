@@ -70,9 +70,17 @@
           {/each}
         </select>
         <button class="btn nav-arrow" aria-label="Next chapter" disabled={!app.canNext} onclick={() => app.nextChapter()}>›</button>
+        <button
+          class="btn nav-arrow star"
+          class:active={app.isBookmarked}
+          aria-label={app.isBookmarked ? 'Remove bookmark' : 'Bookmark this chapter'}
+          title={app.isBookmarked ? 'Remove bookmark' : 'Bookmark this chapter'}
+          onclick={() => app.toggleBookmark()}
+        >{app.isBookmarked ? '★' : '☆'}</button>
       </div>
       <button class="btn search-btn" onclick={() => app.openSearch()}>Search</button>
       <button class="btn companion-btn" onclick={() => app.openCompanion()}>Companion</button>
+      <button class="btn" onclick={() => app.openBookmarks()}>Bookmarks</button>
     </div>
   </div>
 
@@ -230,6 +238,15 @@
   .search-btn,
   .companion-btn {
     background: #efe7d6;
+  }
+  .star {
+    font-size: 1rem;
+  }
+  /* Keep the bookmarked star gold rather than the default dark "active" look. */
+  .btn.star.active {
+    background: #fbf8f0;
+    color: #d4a017;
+    border-color: #c3b69c;
   }
   .btn.tool.active,
   .btn.active {

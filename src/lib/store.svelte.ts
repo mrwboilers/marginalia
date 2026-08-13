@@ -1,5 +1,5 @@
 import type {
-  BookMeta, CompanionPortion, Layer, Mark, MarkingsExport, Note, SearchHit, StrongSeg, ToolMode, Verse, Xref,
+  Bookmark, BookMeta, CompanionPortion, Layer, Mark, MarkingsExport, Note, SearchHit, StrongSeg, ToolMode, Verse, Xref,
 } from './types';
 import { HIGHLIGHT_COLORS } from './types';
 import { DEFAULT_LAYERS, getProvider, type BibleProvider } from './provider';
@@ -51,6 +51,9 @@ class AppState {
   searchMode = $state<'scripture' | 'notes'>('scripture');
   noteResults = $state<NoteHit[]>([]);
 
+  bookmarks = $state<Bookmark[]>([]);
+  bookmarksOpen = $state(false);
+
   // Bible Companion (Robert Roberts' reading plan).
   companionOpen = $state(false);
   companionKey = $state('1-1');       // the day being viewed ("month-day")
@@ -68,6 +71,10 @@ class AppState {
       .filter((n) => n.bookId === this.bookId && n.chapter === this.chapter)
       .filter((n) => this.visibleLayerIds.has(n.layerId))
       .sort((a, b) => a.verse - b.verse)
+  );
+
+  isBookmarked = $derived(
+    this.bookmarks.some((b) => b.bookId === this.bookId && b.chapter === this.chapter)
   );
 
   companionReadings = $derived(readingsFor(this.companionKey));
@@ -110,6 +117,18 @@ class AppState {
     this.companionKey = this.companionTodayKey;
     this.companionProgress = new Set(await this.provider.loadReadingProgress());
 
+    // Restore bookmarks and the last-read position / font size.
+    this.bookmarks = await this.provider.loadBookmarks();
+    const settings = await this.provider.loadSettings();
+    const [lastBook, lastChapter] = (settings.lastRef ?? '').split(':').map(Number);
+    if (lastBook && lastChapter && this.books.some((b) => b.id === lastBook)) {
+      this.bookId = lastBook;
+      this.chapter = lastChapter;
+    }
+    if (settings.fontScale) {
+      this.fontScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, Number(settings.fontScale)));
+    }
+
     await this.loadChapter(this.bookId, this.chapter);
     this.ready = true;
   }
@@ -129,6 +148,9 @@ class AppState {
       this.strongsByVerse = this.strongsOn
         ? await loadStrongsChapter(bookId, chapter)
         : new Map();
+      // Remember where we are so the app reopens here next time. One key (not two)
+      // so the read-modify-write can't race and drop half the position.
+      void this.provider.saveSetting('lastRef', `${bookId}:${chapter}`);
     } finally {
       this.loadingChapter = false;
     }
@@ -160,6 +182,7 @@ class AppState {
 
   adjustFont(delta: number) {
     this.fontScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, this.fontScale + delta));
+    void this.provider?.saveSetting('fontScale', String(this.fontScale));
   }
 
   async toggleStrongs() {
@@ -340,6 +363,39 @@ class AppState {
     this.goTo(hit.bookId, hit.chapter);
   }
 
+  // --- Bookmarks -----------------------------------------------------------
+  openBookmarks() {
+    this.bookmarksOpen = true;
+  }
+  closeBookmarks() {
+    this.bookmarksOpen = false;
+  }
+  /** Bookmark the current chapter, or remove the bookmark if it already exists. */
+  toggleBookmark() {
+    const existing = this.bookmarks.find((b) => b.bookId === this.bookId && b.chapter === this.chapter);
+    if (existing) {
+      this.removeBookmark(existing.id);
+      return;
+    }
+    const bm: Bookmark = {
+      id: crypto.randomUUID(),
+      bookId: this.bookId,
+      chapter: this.chapter,
+      label: `${this.book?.name ?? ''} ${this.chapter}`.trim(),
+      created: new Date().toISOString(),
+    };
+    this.bookmarks = [...this.bookmarks, bm].sort((a, b) => a.bookId - b.bookId || a.chapter - b.chapter);
+    void this.provider?.addBookmark(bm);
+  }
+  removeBookmark(id: string) {
+    this.bookmarks = this.bookmarks.filter((b) => b.id !== id);
+    void this.provider?.deleteBookmark(id);
+  }
+  goToBookmark(bm: Bookmark) {
+    this.bookmarksOpen = false;
+    this.goTo(bm.bookId, bm.chapter);
+  }
+
   // --- Bible Companion -----------------------------------------------------
   openCompanion() {
     this.companionKey = this.companionTodayKey; // always land on today
@@ -436,18 +492,22 @@ class AppState {
   // --- Export / import ----------------------------------------------------
   exportJSON(): string {
     const data: MarkingsExport = {
-      version: 2,
+      version: 3,
       exportedAt: new Date().toISOString(),
       layers: this.layers,
       marks: this.marks,
       notes: this.notes,
+      readingProgress: [...this.companionProgress],
+      bookmarks: this.bookmarks,
     };
     return JSON.stringify(data, null, 2);
   }
 
   async importJSON(raw: string) {
     const data = JSON.parse(raw) as MarkingsExport;
-    if (data.version !== 2) throw new Error(`Unsupported export version: ${data.version}`);
+    if (data.version !== 2 && data.version !== 3) {
+      throw new Error(`Unsupported export version: ${data.version}`);
+    }
     if (Array.isArray(data.layers) && data.layers.length) this.layers = data.layers;
     this.marks = Array.isArray(data.marks) ? data.marks : [];
     this.notes = Array.isArray(data.notes) ? data.notes : [];
@@ -456,6 +516,15 @@ class AppState {
       marks: this.marks,
       notes: this.notes,
     });
+    // v3 additions — restore only when present (older exports omit them).
+    if (Array.isArray(data.readingProgress)) {
+      this.companionProgress = new Set(data.readingProgress);
+      await this.provider?.replaceReadingProgress(data.readingProgress);
+    }
+    if (Array.isArray(data.bookmarks)) {
+      this.bookmarks = data.bookmarks;
+      await this.provider?.replaceBookmarks(data.bookmarks);
+    }
   }
 }
 

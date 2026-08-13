@@ -1,10 +1,12 @@
-import type { BookMeta, Mark, Note, SearchHit, UserData, Verse, Xref } from '../types';
+import type { Bookmark, BookMeta, Mark, Note, SearchHit, UserData, Verse, Xref } from '../types';
 import { DEFAULT_LAYERS, type BibleProvider } from './index';
 import { loadChapterXrefs } from './xrefs';
 
 const BASE = 'https://raw.githubusercontent.com/aruljohn/Bible-kjv/master';
 const STORE_KEY = 'marginalia.userdata.v2';
 const PROGRESS_KEY = 'marginalia.companion.v1';
+const SETTINGS_KEY = 'marginalia.settings.v1';
+const BOOKMARKS_KEY = 'marginalia.bookmarks.v1';
 
 // Canonical KJV book order + chapter counts (avoids fetching all 66 books at startup).
 const BOOKS: [string, number][] = [
@@ -157,5 +159,45 @@ export class HttpProvider implements BibleProvider {
     if (done) set.add(key);
     else set.delete(key);
     localStorage.setItem(PROGRESS_KEY, JSON.stringify([...set]));
+  }
+
+  async replaceReadingProgress(keys: string[]): Promise<void> {
+    localStorage.setItem(PROGRESS_KEY, JSON.stringify(keys));
+  }
+
+  async loadSettings(): Promise<Record<string, string>> {
+    try {
+      const raw = localStorage.getItem(SETTINGS_KEY);
+      if (raw) return JSON.parse(raw) as Record<string, string>;
+    } catch { /* fall through */ }
+    return {};
+  }
+
+  async saveSetting(key: string, value: string): Promise<void> {
+    const s = await this.loadSettings();
+    s[key] = value;
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+  }
+
+  async loadBookmarks(): Promise<Bookmark[]> {
+    try {
+      const raw = localStorage.getItem(BOOKMARKS_KEY);
+      if (raw) return JSON.parse(raw) as Bookmark[];
+    } catch { /* fall through */ }
+    return [];
+  }
+
+  async addBookmark(bm: Bookmark): Promise<void> {
+    const list = (await this.loadBookmarks()).filter((b) => b.id !== bm.id);
+    localStorage.setItem(BOOKMARKS_KEY, JSON.stringify([...list, bm]));
+  }
+
+  async deleteBookmark(id: string): Promise<void> {
+    const list = (await this.loadBookmarks()).filter((b) => b.id !== id);
+    localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(list));
+  }
+
+  async replaceBookmarks(bms: Bookmark[]): Promise<void> {
+    localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(bms));
   }
 }
