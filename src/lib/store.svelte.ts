@@ -1,7 +1,7 @@
 import type {
   Bookmark, BookMeta, CompanionPortion, Layer, Mark, MarkingsExport, Note, SearchHit, StrongSeg, ToolMode, Verse, Xref,
 } from './types';
-import { HIGHLIGHT_COLORS } from './types';
+import { HIGHLIGHT_COLORS, LAYER_COLORS } from './types';
 import { DEFAULT_LAYERS, getProvider, type BibleProvider } from './provider';
 import { loadLexicon, loadStrongsChapter } from './provider/strongs';
 import { companionKeys, companionLabel, keyFor, loadCompanion, readingsFor } from './provider/companion';
@@ -53,6 +53,7 @@ class AppState {
 
   bookmarks = $state<Bookmark[]>([]);
   bookmarksOpen = $state(false);
+  layersOpen = $state(false);
 
   // Bible Companion (Robert Roberts' reading plan).
   companionOpen = $state(false);
@@ -90,26 +91,10 @@ class AppState {
     this.books = await this.provider.books();
     const data = await this.provider.loadUserData();
 
-    // Migration: collapse to the single Study layer (older DBs also had "Sermon").
-    // Any markings on a removed layer are folded onto Study rather than orphaned.
-    const KEEP = 'study';
-    const dirty =
-      !data.layers.some((l) => l.id === KEEP) ||
-      data.layers.some((l) => l.id !== KEEP) ||
-      data.marks.some((m) => m.layerId !== KEEP) ||
-      data.notes.some((n) => n.layerId !== KEEP);
-    if (dirty) {
-      const study = data.layers.find((l) => l.id === KEEP) ?? DEFAULT_LAYERS[0];
-      data.layers = [study];
-      data.marks = data.marks.map((m) => (m.layerId === KEEP ? m : { ...m, layerId: KEEP }));
-      data.notes = data.notes.map((n) => (n.layerId === KEEP ? n : { ...n, layerId: KEEP }));
-      await this.provider.replaceUserData(data);
-    }
-
-    this.layers = data.layers;
+    this.layers = data.layers.length ? data.layers : structuredClone(DEFAULT_LAYERS);
     this.marks = data.marks;
     this.notes = data.notes;
-    this.activeLayerId = KEEP;
+    this.activeLayerId = this.layers[0].id;
 
     await loadCompanion();
     const now = new Date();
@@ -127,6 +112,9 @@ class AppState {
     }
     if (settings.fontScale) {
       this.fontScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, Number(settings.fontScale)));
+    }
+    if (settings.activeLayer && this.layers.some((l) => l.id === settings.activeLayer)) {
+      this.activeLayerId = settings.activeLayer;
     }
 
     await this.loadChapter(this.bookId, this.chapter);
@@ -207,6 +195,52 @@ class AppState {
       return { ...l, visible };
     });
     void this.provider?.setLayerVisible(id, visible);
+  }
+
+  setActiveLayer(id: string) {
+    this.activeLayerId = id;
+    void this.provider?.saveSetting('activeLayer', id);
+  }
+
+  /** Create a new layer (next unused palette color) and make it active. */
+  addLayer() {
+    const used = new Set(this.layers.map((l) => l.color));
+    const color = LAYER_COLORS.find((c) => !used.has(c)) ?? LAYER_COLORS[this.layers.length % LAYER_COLORS.length];
+    const layer: Layer = { id: crypto.randomUUID(), name: `Layer ${this.layers.length + 1}`, color, visible: true };
+    this.layers = [...this.layers, layer];
+    void this.provider?.replaceLayers(this.layers);
+    this.setActiveLayer(layer.id);
+  }
+
+  renameLayer(id: string, name: string) {
+    this.layers = this.layers.map((l) => (l.id === id ? { ...l, name } : l));
+    void this.provider?.replaceLayers(this.layers);
+  }
+
+  setLayerColor(id: string, color: string) {
+    this.layers = this.layers.map((l) => (l.id === id ? { ...l, color } : l));
+    void this.provider?.replaceLayers(this.layers);
+  }
+
+  /** Delete a layer along with its marks and notes (never the last remaining layer). */
+  deleteLayer(id: string) {
+    if (this.layers.length <= 1) return;
+    const removeMarks = this.marks.filter((m) => m.layerId === id).map((m) => m.id);
+    const removeNotes = this.notes.filter((n) => n.layerId === id).map((n) => n.id);
+    this.marks = this.marks.filter((m) => m.layerId !== id);
+    this.notes = this.notes.filter((n) => n.layerId !== id);
+    this.layers = this.layers.filter((l) => l.id !== id);
+    void this.provider?.deleteMarks(removeMarks);
+    for (const nid of removeNotes) void this.provider?.deleteNote(nid);
+    void this.provider?.replaceLayers(this.layers);
+    if (this.activeLayerId === id) this.setActiveLayer(this.layers[0].id);
+  }
+
+  openLayers() {
+    this.layersOpen = true;
+  }
+  closeLayers() {
+    this.layersOpen = false;
   }
 
   noteFor(v: number): Note | undefined {

@@ -146,6 +146,11 @@ export interface MarkingsExport {
   bookmarks?: Bookmark[];
 }
 
+/** Distinct dot colors offered when creating/recoloring a mark layer. */
+export const LAYER_COLORS = [
+  '#d4a017', '#3182ce', '#38a169', '#d53f8c', '#dd6b20', '#805ad5', '#319795', '#e53e3e',
+] as const;
+
 /** The six highlighter colors shown in the toolbar. */
 export const HIGHLIGHT_COLORS = [
   { name: 'yellow', value: '#f6e05e' },

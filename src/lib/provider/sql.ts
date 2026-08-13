@@ -1,5 +1,5 @@
 import Database from '@tauri-apps/plugin-sql';
-import type { Bookmark, BookMeta, Mark, Note, SearchHit, UserData, Verse, Xref } from '../types';
+import type { Bookmark, BookMeta, Layer, Mark, Note, SearchHit, UserData, Verse, Xref } from '../types';
 import type { BibleProvider } from './index';
 import { loadChapterXrefs } from './xrefs';
 
@@ -132,6 +132,17 @@ export class SqlProvider implements BibleProvider {
 
   async setLayerVisible(id: string, visible: boolean): Promise<void> {
     await this.db.execute(`UPDATE layers SET visible = $1 WHERE id = $2`, [visible ? 1 : 0, id]);
+  }
+
+  async replaceLayers(layers: Layer[]): Promise<void> {
+    await this.db.execute(`DELETE FROM layers`);
+    for (let i = 0; i < layers.length; i++) {
+      const l = layers[i];
+      await this.db.execute(
+        `INSERT INTO layers (id, name, color, visible, sort) VALUES ($1,$2,$3,$4,$5)`,
+        [l.id, l.name, l.color, l.visible ? 1 : 0, i]
+      );
+    }
   }
 
   async replaceUserData(data: UserData): Promise<void> {

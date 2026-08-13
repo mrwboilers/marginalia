@@ -6,6 +6,7 @@
   import SearchPanel from '$lib/components/SearchPanel.svelte';
   import CompanionPanel from '$lib/components/CompanionPanel.svelte';
   import BookmarksPanel from '$lib/components/BookmarksPanel.svelte';
+  import LayersPanel from '$lib/components/LayersPanel.svelte';
 
   let error = $state('');
 
@@ -39,6 +40,9 @@
   {/if}
   {#if app.bookmarksOpen}
     <BookmarksPanel />
+  {/if}
+  {#if app.layersOpen}
+    <LayersPanel />
   {/if}
 {/if}
 

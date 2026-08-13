@@ -19,6 +19,7 @@ export interface BibleProvider {
   upsertNote(note: Note): Promise<void>;
   deleteNote(id: string): Promise<void>;
   setLayerVisible(id: string, visible: boolean): Promise<void>;
+  replaceLayers(layers: Layer[]): Promise<void>;
   replaceUserData(data: UserData): Promise<void>;
 
   // Bible Companion reading progress: a flat set of "done" portion keys

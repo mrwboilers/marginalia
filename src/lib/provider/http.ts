@@ -1,4 +1,4 @@
-import type { Bookmark, BookMeta, Mark, Note, SearchHit, UserData, Verse, Xref } from '../types';
+import type { Bookmark, BookMeta, Layer, Mark, Note, SearchHit, UserData, Verse, Xref } from '../types';
 import { DEFAULT_LAYERS, type BibleProvider } from './index';
 import { loadChapterXrefs } from './xrefs';
 
@@ -139,6 +139,12 @@ export class HttpProvider implements BibleProvider {
   async setLayerVisible(id: string, visible: boolean): Promise<void> {
     const d = this.read();
     d.layers = d.layers.map((l) => (l.id === id ? { ...l, visible } : l));
+    this.write(d);
+  }
+
+  async replaceLayers(layers: Layer[]): Promise<void> {
+    const d = this.read();
+    d.layers = layers;
     this.write(d);
   }
 

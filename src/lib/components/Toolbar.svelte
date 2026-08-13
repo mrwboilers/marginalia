@@ -110,12 +110,25 @@
     <span class="row-label">Layers</span>
     <div class="group layers">
       {#each app.layers as layer (layer.id)}
-        <label class="layer">
-          <input type="checkbox" checked={layer.visible} onchange={() => app.toggleLayer(layer.id)} />
-          <span class="dot" style={`background:${layer.color}`}></span>
-          <span class="layer-name">{layer.name}</span>
-        </label>
+        <div class="layer" class:active={layer.id === app.activeLayerId}>
+          <input
+            type="checkbox"
+            checked={layer.visible}
+            aria-label={`Show ${layer.name}`}
+            onchange={() => app.toggleLayer(layer.id)}
+          />
+          <button
+            class="layer-pick"
+            title={layer.id === app.activeLayerId ? 'Active layer (new marks go here)' : `Mark on ${layer.name}`}
+            onclick={() => app.setActiveLayer(layer.id)}
+          >
+            <span class="dot" style={`background:${layer.color}`}></span>
+            <span class="layer-name">{layer.name}</span>
+          </button>
+        </div>
       {/each}
+      <button class="btn layer-add" title="New layer" onclick={() => app.addLayer()}>+</button>
+      <button class="btn" onclick={() => app.openLayers()}>Manage</button>
     </div>
 
     <div class="group">
@@ -277,10 +290,25 @@
   .layer {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
-    padding: 0.3rem 0.55rem;
+    gap: 0.3rem;
+    padding: 0.15rem 0.3rem 0.15rem 0.4rem;
     border-radius: 999px;
+    border: 1px solid transparent;
+  }
+  /* The active layer (where new marks/notes land) gets a subtle ring. */
+  .layer.active {
+    border-color: #a4906f;
+    background: #efe7d6;
+  }
+  .layer-pick {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: none;
+    border: none;
     cursor: pointer;
+    padding: 0.15rem 0.1rem;
+    font: inherit;
   }
   .dot {
     width: 10px;
@@ -290,6 +318,11 @@
   .layer-name {
     font-size: 0.85rem;
     color: #2b2520;
+  }
+  .layer-add {
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0.3rem 0.55rem;
   }
 
   .hidden-file {
