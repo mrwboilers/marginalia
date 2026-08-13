@@ -6,7 +6,10 @@ import { DEFAULT_LAYERS, getProvider, type BibleProvider } from './provider';
 import { loadLexicon, loadStrongsChapter } from './provider/strongs';
 import { companionKeys, companionLabel, keyFor, loadCompanion, readingsFor } from './provider/companion';
 import { matchNotes, type NoteHit } from './notesearch';
+import { renderPieces, type RenderPiece } from './marks';
 import { parseRef } from './books';
+
+export type { RenderPiece } from './marks';
 
 /** A rendered Strong's item: a styled text piece or a Strong's number marker. */
 export type StrongItem = RenderPiece | { strongs: string[] };
@@ -15,14 +18,6 @@ const MIN_SCALE = 0.8;
 const MAX_SCALE = 1.6;
 const DEFAULT_BOOK = 43; // John
 const DEFAULT_CHAPTER = 1;
-
-/** A rendered slice of verse text with its resolved styling. */
-export interface RenderPiece {
-  text: string;
-  highlight?: string;
-  underline?: boolean;
-  markIds: string[];
-}
 
 class AppState {
   private provider: BibleProvider | null = null;
@@ -280,32 +275,7 @@ class AppState {
    * be styled correctly while marks stay anchored to whole-verse offsets.
    */
   private piecesForRange(v: number, baseOffset: number, text: string): RenderPiece[] {
-    const len = text.length;
-    const marks = this.applicableMarks(v).filter(
-      (m) => m.end > baseOffset && m.start < baseOffset + len
-    );
-    if (!marks.length) return [{ text, markIds: [] }];
-
-    const bounds = new Set<number>([0, len]);
-    for (const m of marks) {
-      bounds.add(Math.max(0, Math.min(len, m.start - baseOffset)));
-      bounds.add(Math.max(0, Math.min(len, m.end - baseOffset)));
-    }
-    const points = [...bounds].sort((a, b) => a - b);
-
-    const pieces: RenderPiece[] = [];
-    for (let i = 0; i < points.length - 1; i++) {
-      const s = points[i];
-      const e = points[i + 1];
-      if (e <= s) continue;
-      const abs = baseOffset + s;
-      const absE = baseOffset + e;
-      const covering = marks.filter((m) => m.start <= abs && m.end >= absE);
-      const highlight = covering.filter((m) => m.type === 'highlight').at(-1)?.color;
-      const underline = covering.some((m) => m.type === 'underline');
-      pieces.push({ text: text.slice(s, e), highlight, underline, markIds: covering.map((m) => m.id) });
-    }
-    return pieces;
+    return renderPieces(baseOffset, text, this.applicableMarks(v));
   }
 
   renderVerse(v: number, text: string): RenderPiece[] {
