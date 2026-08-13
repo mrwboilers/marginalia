@@ -7,21 +7,30 @@ on *your* computer and fully yours.
 
 This is an early build shared for feedback, so expect a rough edge or two.
 
-## Install (macOS)
+## Install
 
-1. Open **Marginalia.dmg** and drag **Marginalia** into your **Applications** folder.
-2. The app isn't signed with an Apple Developer certificate yet, so the first launch
-   is blocked. Clear that with one command in **Terminal**:
+Download the build for your computer from the
+[**Releases**](https://github.com/mrwboilers/marginalia/releases/latest) page. The
+app isn't signed yet, so you'll see a one-time "unknown developer" warning — that's
+expected, and it's safe. Nothing in the app talks to the internet; it runs entirely
+offline on your machine.
+
+### On a Mac
+
+1. Open **`Marginalia_…_universal.dmg`** and drag **Marginalia** into **Applications**.
+2. The first launch is blocked as "damaged / can't be opened". Clear it with one
+   command in **Terminal**:
    ```bash
    xattr -dr com.apple.quarantine /Applications/Marginalia.app
    ```
-   Then open Marginalia normally (double-click).
+   Then open Marginalia normally. *(Or: try to open it once, then go to **System
+   Settings → Privacy & Security** and click **Open Anyway**.)*
 
-   *Alternative:* if you'd rather not use Terminal, try to open it once, then go to
-   **System Settings → Privacy & Security**, scroll down, and click **Open Anyway**.
+### On Windows
 
-> The scary "damaged / can't be opened" message just means it's unsigned — it's safe.
-> Nothing in the app talks to the internet; it runs entirely offline on your Mac.
+1. Download **`Marginalia_…_x64-setup.exe`** and run it.
+2. If **"Windows protected your PC"** appears, click **More info → Run anyway** — it
+   only shows because the installer isn't signed.
 
 ## What to try
 

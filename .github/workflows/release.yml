@@ -1,41 +1,49 @@
 name: Release
 
-# Push a version tag (e.g. `git tag v0.1.0 && git push origin v0.1.0`) to build the
-# universal macOS bundle and publish it as a GitHub Release with the .dmg attached.
+# Push a version tag (e.g. `git tag v0.1.1 && git push origin v0.1.1`) to build the
+# desktop bundles and publish them as a GitHub Release:
+#   macOS   — universal .dmg (Apple Silicon + Intel)
+#   Windows — x64 .msi and .exe (NSIS) installers
 on:
   push:
     tags: ['v*']
 
 jobs:
-  build-macos:
-    runs-on: macos-latest
+  release:
     permissions:
       contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: '--target universal-apple-darwin'
+            rust-targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
+          - platform: windows-latest
+            args: ''
+            rust-targets: ''
+    runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - name: Install Rust (Apple Silicon + Intel targets)
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
+          targets: ${{ matrix.rust-targets }}
       - run: npm ci
       - name: Build and publish release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          args: --target universal-apple-darwin
+          args: ${{ matrix.args }}
           tagName: ${{ github.ref_name }}
           releaseName: Marginalia ${{ github.ref_name }}
           releaseBody: |
-            macOS universal build (Apple Silicon + Intel). The app is unsigned, so
-            on first launch run:
-
-                xattr -dr com.apple.quarantine /Applications/Marginalia.app
-
-            See the README for the full install steps.
+            macOS (universal — Apple Silicon + Intel) and Windows (x64) builds.
+            Both are unsigned; see the README for the one-step first-launch note per OS.
           releaseDraft: false
           prerelease: false

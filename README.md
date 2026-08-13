@@ -10,23 +10,33 @@ or write leaves your machine.
 
 ---
 
-## Download & install (macOS)
+## Download & install
 
-1. Download the latest **`Marginalia_<version>_universal.dmg`** from the
-   [**Releases**](https://github.com/mrwboilers/marginalia/releases/latest) page.
-   The build is a *universal* binary — it runs natively on both Apple Silicon and
-   Intel Macs.
+Grab the latest build from the
+[**Releases**](https://github.com/mrwboilers/marginalia/releases/latest) page. The
+app isn't code-signed yet, so each OS shows a one-time "unknown developer" warning —
+the steps below clear it.
+
+### macOS
+
+1. Download **`Marginalia_<version>_universal.dmg`** (a *universal* binary — runs
+   natively on both Apple Silicon and Intel Macs).
 2. Open the `.dmg` and drag **Marginalia** into your **Applications** folder.
-3. The app isn't signed with an Apple Developer certificate yet, so macOS blocks the
-   first launch with a *"Marginalia is damaged / can't be opened"* warning. That just
-   means it's unsigned — clear it with one command in **Terminal**:
+3. macOS blocks the unsigned first launch with a *"Marginalia is damaged / can't be
+   opened"* warning. Clear it with one command in **Terminal**:
    ```bash
    xattr -dr com.apple.quarantine /Applications/Marginalia.app
    ```
-   Then open Marginalia normally.
+   Then open Marginalia normally. *(Alternative: try to open it once, then go to
+   **System Settings → Privacy & Security** and click **Open Anyway**.)*
 
-   *Alternative:* try to open it once, then go to **System Settings → Privacy &
-   Security**, scroll down, and click **Open Anyway**.
+### Windows (x64)
+
+1. Download **`Marginalia_<version>_x64-setup.exe`** (or the `.msi`) and run it.
+2. Windows SmartScreen shows *"Windows protected your PC"* because the installer is
+   unsigned. Click **More info → Run anyway**.
+3. Windows 10/11 already include the required WebView2 runtime; if it's missing the
+   installer fetches it automatically.
 
 ## Features
 

@@ -1,0 +1,9 @@
+# Treat the bundled SQLite database as binary (never line-ending convert it),
+# so the Windows CI checkout doesn't corrupt it.
+*.db binary
+
+# Bundled data + source are LF; keep them stable across platforms.
+*.json text eol=lf
+*.mjs text eol=lf
+*.ts text eol=lf
+*.svelte text eol=lf
