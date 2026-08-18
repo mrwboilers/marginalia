@@ -12,6 +12,7 @@
   ];
 
   let fileInput: HTMLInputElement;
+  let importError = $state(''); // shown in-app; alert() is a no-op in the Tauri webview
 
   const chapterOptions = $derived(
     Array.from({ length: app.book?.chapters ?? 0 }, (_, i) => i + 1)
@@ -38,10 +39,11 @@
     const input = e.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
+    importError = '';
     try {
       await app.importJSON(await file.text());
     } catch (err) {
-      alert(`Could not import markings: ${(err as Error).message}`);
+      importError = `Could not import: ${(err as Error).message}`;
     }
     input.value = '';
   }
@@ -145,6 +147,9 @@
       <button class="btn" onclick={doExport}>Export</button>
       <button class="btn" onclick={() => fileInput.click()}>Import</button>
       <input bind:this={fileInput} type="file" accept="application/json" class="hidden-file" onchange={onImportFile} />
+      {#if importError}
+        <span class="import-error" role="alert">{importError}</span>
+      {/if}
     </div>
   </div>
 </header>
@@ -327,5 +332,10 @@
 
   .hidden-file {
     display: none;
+  }
+  .import-error {
+    font-size: 0.75rem;
+    color: #b03a2e;
+    max-width: 18rem;
   }
 </style>

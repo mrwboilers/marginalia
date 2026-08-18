@@ -2,8 +2,14 @@
   import { app } from '../store.svelte';
   import { LAYER_COLORS } from '../types';
 
+  // In-app delete confirmation (window.confirm() is a no-op in the Tauri webview).
+  let confirmId = $state<string | null>(null);
+
   function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape') app.closeLayers();
+    if (e.key === 'Escape') {
+      if (confirmId) confirmId = null;
+      else app.closeLayers();
+    }
   }
 
   function markCount(layerId: string): number {
@@ -38,13 +44,22 @@
               class:on={layer.id === app.activeLayerId}
               onclick={() => app.setActiveLayer(layer.id)}
             >{layer.id === app.activeLayerId ? '● Active' : 'Set active'}</button>
-            <button
-              class="del"
-              aria-label={`Delete ${layer.name}`}
-              disabled={app.layers.length <= 1}
-              title={app.layers.length <= 1 ? "Can't delete the only layer" : `Delete layer and its ${markCount(layer.id)} markings`}
-              onclick={() => { if (confirm(`Delete "${layer.name}" and its ${markCount(layer.id)} markings?`)) app.deleteLayer(layer.id); }}
-            >🗑</button>
+            {#if confirmId === layer.id}
+              <button
+                class="del-confirm"
+                title={markCount(layer.id) > 0 ? `Also deletes ${markCount(layer.id)} markings` : 'Delete this layer'}
+                onclick={() => { app.deleteLayer(layer.id); confirmId = null; }}
+              >Delete{markCount(layer.id) > 0 ? ` (${markCount(layer.id)})` : ''}</button>
+              <button class="del-cancel" onclick={() => (confirmId = null)}>Cancel</button>
+            {:else}
+              <button
+                class="del"
+                aria-label={`Delete ${layer.name}`}
+                disabled={app.layers.length <= 1}
+                title={app.layers.length <= 1 ? "Can't delete the only layer" : `Delete ${layer.name}`}
+                onclick={() => (confirmId = layer.id)}
+              >🗑</button>
+            {/if}
           </div>
           <div class="swatches">
             {#each LAYER_COLORS as c (c)}
@@ -171,6 +186,25 @@
   .del:disabled {
     opacity: 0.3;
     cursor: default;
+  }
+  .del-confirm,
+  .del-cancel {
+    font: inherit;
+    font-size: 0.72rem;
+    padding: 0.3rem 0.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .del-confirm {
+    border: 1px solid #b03a2e;
+    background: #b03a2e;
+    color: #f4efe2;
+  }
+  .del-cancel {
+    border: 1px solid #c3b69c;
+    background: #fbf8f0;
+    color: #6b5d4b;
   }
   .swatches {
     display: flex;
