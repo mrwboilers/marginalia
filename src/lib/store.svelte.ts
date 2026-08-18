@@ -6,6 +6,7 @@ import { DEFAULT_LAYERS, getProvider, type BibleProvider } from './provider';
 import { loadLexicon, loadStrongsChapter } from './provider/strongs';
 import { companionKeys, companionLabel, keyFor, loadCompanion, readingsFor } from './provider/companion';
 import { matchNotes, type NoteHit } from './notesearch';
+import { autoBackup, manualBackup, revealBackups } from './backup';
 import { renderPieces, type RenderPiece } from './marks';
 import { parseRef } from './books';
 
@@ -122,6 +123,20 @@ class AppState {
 
     await this.loadChapter(this.bookId, this.chapter);
     this.ready = true;
+
+    // Safety net: on each launch, snapshot the data to the managed backups folder
+    // (native only; keeps the newest 20). Skipped when there's nothing to protect.
+    if (this.marks.length || this.notes.length || this.bookmarks.length) {
+      void autoBackup(this.exportJSON());
+    }
+  }
+
+  /** Explicit backup (toolbar). Native → backups folder; browser → download. */
+  backupNow(): Promise<'saved' | 'downloaded'> {
+    return manualBackup(this.exportJSON());
+  }
+  showBackups() {
+    void revealBackups();
   }
 
   private async loadChapter(bookId: number, chapter: number) {

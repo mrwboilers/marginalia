@@ -1,6 +1,7 @@
 <script lang="ts">
   import { app } from '../store.svelte';
   import { HIGHLIGHT_COLORS } from '../types';
+  import { nativeApp } from '../backup';
   import type { ToolMode } from '../types';
 
   const tools: { id: ToolMode; label: string }[] = [
@@ -13,6 +14,18 @@
 
   let fileInput: HTMLInputElement;
   let importError = $state(''); // shown in-app; alert() is a no-op in the Tauri webview
+  let backupMsg = $state('');
+
+  async function doBackup() {
+    importError = '';
+    try {
+      const where = await app.backupNow();
+      backupMsg = where === 'saved' ? 'Backed up ✓' : 'Saved a copy ✓';
+    } catch (err) {
+      backupMsg = `Backup failed: ${(err as Error).message}`;
+    }
+    setTimeout(() => (backupMsg = ''), 2500);
+  }
 
   const chapterOptions = $derived(
     Array.from({ length: app.book?.chapters ?? 0 }, (_, i) => i + 1)
@@ -144,9 +157,16 @@
       <button class="btn" aria-label="Increase font size" onclick={() => app.adjustFont(0.1)}>A+</button>
     </div>
     <div class="group">
+      <button class="btn" onclick={doBackup}>Back up</button>
+      {#if nativeApp}
+        <button class="btn" onclick={() => app.showBackups()}>Show backups</button>
+      {/if}
       <button class="btn" onclick={doExport}>Export</button>
       <button class="btn" onclick={() => fileInput.click()}>Import</button>
       <input bind:this={fileInput} type="file" accept="application/json" class="hidden-file" onchange={onImportFile} />
+      {#if backupMsg}
+        <span class="backup-msg">{backupMsg}</span>
+      {/if}
       {#if importError}
         <span class="import-error" role="alert">{importError}</span>
       {/if}
@@ -337,5 +357,9 @@
     font-size: 0.75rem;
     color: #b03a2e;
     max-width: 18rem;
+  }
+  .backup-msg {
+    font-size: 0.75rem;
+    color: #5e8c5a;
   }
 </style>
