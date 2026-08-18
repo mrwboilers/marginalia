@@ -56,6 +56,7 @@ class AppState {
   bookmarks = $state<Bookmark[]>([]);
   bookmarksOpen = $state(false);
   layersOpen = $state(false);
+  lightboxSrc = $state<string | null>(null); // a note image opened full-size
 
   // Bible Companion (Robert Roberts' reading plan).
   companionOpen = $state(false);
@@ -243,6 +244,13 @@ class AppState {
   }
   closeLayers() {
     this.layersOpen = false;
+  }
+
+  openImage(src: string) {
+    this.lightboxSrc = src;
+  }
+  closeImage() {
+    this.lightboxSrc = null;
   }
 
   noteFor(v: number): Note | undefined {

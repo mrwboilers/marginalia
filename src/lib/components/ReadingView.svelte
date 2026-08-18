@@ -266,8 +266,10 @@
 
   .content {
     display: grid;
+    /* Symmetric margins so the center reference column (and the chapter number
+       above it) sit at the true horizontal center of the page. */
     grid-template-columns:
-      minmax(140px, 180px) 1fr minmax(104px, 128px) 1fr minmax(210px, 290px);
+      minmax(180px, 240px) 1fr minmax(104px, 128px) 1fr minmax(180px, 240px);
     column-gap: 1.5rem;
     align-items: stretch;
   }

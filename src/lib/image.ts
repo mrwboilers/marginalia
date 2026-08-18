@@ -2,7 +2,9 @@
 // embedded directly in a note's HTML and travel inside the export JSON. Runs in
 // the browser (canvas). Large photos are capped so notes don't bloat storage.
 
-const MAX_DIM = 1024; // longest edge, in px
+// Longest edge, in px. Large enough that the full-size lightbox can show fine
+// detail (small text in a diagram/map), while still capping runaway file sizes.
+const MAX_DIM = 2048;
 
 /** Load a Blob into an HTMLImageElement. */
 function loadImage(blob: Blob): Promise<HTMLImageElement> {

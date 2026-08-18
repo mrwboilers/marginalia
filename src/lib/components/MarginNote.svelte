@@ -60,6 +60,12 @@
     // Don't leave an empty chip behind if the note was never written.
     if (!hasBody) app.deleteNote(note.id);
   }
+
+  // Click an image in the read popover to open it full-size.
+  function onReadClick(e: MouseEvent) {
+    const t = e.target as HTMLElement;
+    if (t.tagName === 'IMG') app.openImage((t as HTMLImageElement).src);
+  }
 </script>
 
 <div
@@ -114,7 +120,7 @@
     <div class="pop read" style={`--layer:${layerColor}`}>
       <div class="ref">{app.book?.name ?? ''} {note.chapter}:{note.verse}</div>
       {#if isHtml}
-        <div class="full rich">{@html sanitizeHtml(note.body)}</div>
+        <div class="full rich" onclick={onReadClick} role="presentation">{@html sanitizeHtml(note.body)}</div>
       {:else}
         <div class="full">{note.body}</div>
       {/if}
@@ -242,6 +248,7 @@
     height: auto;
     border-radius: 4px;
     margin: 0.2rem 0;
+    cursor: zoom-in;
   }
   .pop .full.rich :global(a) {
     color: #7a5230;
