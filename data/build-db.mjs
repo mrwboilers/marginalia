@@ -3,10 +3,16 @@
 //   node --experimental-sqlite data/build-db.mjs
 //
 // Fetches every bundled, public-domain translation listed in ./translations.mjs
-// (KJV from aruljohn/Bible-kjv, WEB Classic from eBible.org), and writes the content
-// tables + an FTS5 search index + the (empty) user-data tables into
-// src-tauri/db/marginalia.db. On first run the app copies this DB into the OS
-// app-data dir and works read-write.
+// and writes the content tables + an FTS5 search index + the (empty) user-data
+// tables into src-tauri/db/marginalia.db. On first run the app copies this DB
+// into the OS app-data dir and works read-write.
+//
+// Sources (see each entry's `source` in ./translations.mjs):
+//   - KJV — aruljohn/Bible-kjv (one JSON file per book).
+//   - WEB — eBible.org "World English Bible Classic" (`eng-web`), the American-
+//           English edition that uses "Yahweh" in the OT, from its authoritative
+//           verse-per-line ZIP distribution (https://ebible.org/Scriptures/).
+//           Only the 66 canonical books are imported (Deuterocanon is skipped).
 //
 // The translation flagged `source.reference` defines the shared `books` table
 // (canonical order + chapter counts); every other translation maps its verses
