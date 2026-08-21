@@ -7,6 +7,9 @@ separately (see LICENSE).
 
 - **King James Version (KJV)** — Public Domain.
   Source: [aruljohn/Bible-kjv](https://github.com/aruljohn/Bible-kjv).
+- **World English Bible (WEB)** — Public Domain (dedicated to the public domain by
+  the copyright holder, Michael Paul Johnson / [eBible.org](https://ebible.org/web/)).
+  Fetched via the [getbible.net v2](https://getbible.net/) distribution of `eng-web`.
 
 ## Cross-references
 
@@ -38,4 +41,4 @@ separately (see LICENSE).
 
 - Translators' marginal notes / alternate readings ("Or, …").
 - Words of Christ (red-letter) markup.
-- World English Bible (WEB) and other public-domain translations.
+- Additional public-domain translations (BSB, YLT, ASV).

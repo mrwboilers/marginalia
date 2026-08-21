@@ -2,9 +2,16 @@
 //
 //   node --experimental-sqlite data/build-db.mjs
 //
-// Fetches the full public-domain KJV (aruljohn/Bible-kjv), writes content tables
-// + an FTS5 search index + the (empty) user-data tables into src-tauri/db/marginalia.db.
-// On first run the app copies this DB into the OS app-data dir and works read-write.
+// Fetches every bundled, public-domain translation listed in ./translations.mjs
+// (KJV from aruljohn/Bible-kjv, WEB from getbible.net), and writes the content
+// tables + an FTS5 search index + the (empty) user-data tables into
+// src-tauri/db/marginalia.db. On first run the app copies this DB into the OS
+// app-data dir and works read-write.
+//
+// The translation flagged `source.reference` defines the shared `books` table
+// (canonical order + chapter counts); every other translation maps its verses
+// onto those same book ids. Per-translation versification differences (a verse
+// present in one text but absent from another) are preserved as-is.
 
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, rmSync } from 'node:fs';
@@ -14,7 +21,6 @@ import { TRANSLATIONS } from './translations.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'src-tauri', 'db', 'marginalia.db');
-const BASE = 'https://raw.githubusercontent.com/aruljohn/Bible-kjv/master';
 const OT_COUNT = 39; // first 39 books are Old Testament
 
 async function fetchJson(url) {
@@ -23,28 +29,90 @@ async function fetchJson(url) {
   return res.json();
 }
 
-async function main() {
-  console.log('Fetching book list…');
-  const bookNames = await fetchJson(`${BASE}/Books.json`);
-  console.log(`  ${bookNames.length} books`);
+/** Run `fn` over `items` with bounded concurrency, preserving input order. */
+async function mapPool(items, concurrency, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+      while (next < items.length) {
+        const i = next++;
+        out[i] = await fn(items[i], i);
+      }
+    })
+  );
+  return out;
+}
 
-  // Fetch all books (small files; modest concurrency keeps GitHub happy).
+// --- Source adapters: each returns { books:[{bookId,name,chapterCount}], verses:[{bookId,chapter,verse,text}] } ---
+
+/** aruljohn/Bible-kjv: Books.json (canonical order) + one file per book. */
+async function fetchAruljohn({ base }) {
+  const bookNames = await fetchJson(`${base}/Books.json`);
+  const fetched = await mapPool(bookNames, 8, async (name) => {
+    const file = name.replace(/\s+/g, '');
+    return { name, data: await fetchJson(`${base}/${file}.json`) };
+  });
   const books = [];
-  const CONCURRENCY = 8;
-  for (let i = 0; i < bookNames.length; i += CONCURRENCY) {
-    const batch = bookNames.slice(i, i + CONCURRENCY);
-    const fetched = await Promise.all(
-      batch.map(async (name) => {
-        const file = name.replace(/\s+/g, '');
-        const data = await fetchJson(`${BASE}/${file}.json`);
-        return { name, data };
-      })
-    );
-    books.push(...fetched);
-    console.log(`  fetched ${books.length}/${bookNames.length}`);
-  }
-  // Preserve canonical order.
-  books.sort((a, b) => bookNames.indexOf(a.name) - bookNames.indexOf(b.name));
+  const verses = [];
+  fetched.forEach(({ name, data }, idx) => {
+    const bookId = idx + 1;
+    books.push({ bookId, name, chapterCount: data.chapters.length });
+    for (const ch of data.chapters) {
+      const chapter = Number(ch.chapter);
+      for (const vs of ch.verses) {
+        verses.push({ bookId, chapter, verse: Number(vs.verse), text: vs.text });
+      }
+    }
+  });
+  return { books, verses };
+}
+
+/** getbible.net v2: one file per book number (1..66), canonical order. */
+async function fetchGetbible({ base }) {
+  const nrs = Array.from({ length: 66 }, (_, i) => i + 1);
+  const fetched = await mapPool(nrs, 6, (nr) => fetchJson(`${base}/${nr}.json`));
+  const books = [];
+  const verses = [];
+  fetched.forEach((data, idx) => {
+    const bookId = idx + 1; // getbible `nr` follows the same canonical order
+    books.push({ bookId, name: data.name, chapterCount: data.chapters.length });
+    for (const ch of data.chapters) {
+      const chapter = Number(ch.chapter);
+      for (const vs of ch.verses) {
+        verses.push({ bookId, chapter, verse: Number(vs.verse), text: vs.text });
+      }
+    }
+  });
+  return { books, verses };
+}
+
+const ADAPTERS = { aruljohn: fetchAruljohn, getbible: fetchGetbible };
+
+async function loadTranslation(t) {
+  const adapter = ADAPTERS[t.source?.format];
+  if (!adapter) throw new Error(`No source adapter for ${t.abbrev} (format: ${t.source?.format})`);
+  console.log(`Fetching ${t.abbrev} (${t.name})…`);
+  const { books, verses } = await adapter(t.source);
+  // Normalize: trim whitespace, drop any empty verses (defensive; versification-safe).
+  const clean = verses
+    .map((v) => ({ ...v, text: (v.text ?? '').replace(/\s+/g, ' ').trim() }))
+    .filter((v) => v.text.length > 0);
+  console.log(`  ${t.abbrev}: ${books.length} books, ${clean.length} verses`);
+  return { books, verses: clean };
+}
+
+async function main() {
+  const bundled = TRANSLATIONS.filter((t) => t.isLocal);
+  const reference = bundled.find((t) => t.source?.reference);
+  if (!reference) throw new Error('No reference translation (source.reference: true) found.');
+
+  // Fetch every bundled translation.
+  const loaded = new Map();
+  for (const t of bundled) loaded.set(t.id, await loadTranslation(t));
+
+  const refBooks = loaded.get(reference.id).books;
+  if (refBooks.length !== 66) throw new Error(`Reference ${reference.abbrev} has ${refBooks.length} books, expected 66.`);
 
   mkdirSync(dirname(OUT), { recursive: true });
   rmSync(OUT, { force: true });
@@ -125,48 +193,50 @@ async function main() {
       t.sourceUrl || '', t.textVersion || '', t.hasStrongs ? 1 : 0
     );
   }
-  // Only KJV text is bundled (aruljohn/Bible-kjv). Its verses use its translation id.
-  const KJV_ID = TRANSLATIONS.find((t) => t.abbrev === 'KJV').id;
 
   db.prepare(
     `INSERT INTO layers (id, name, color, visible, sort) VALUES
        ('study', 'Study', '#d4a017', 1, 0)`
   ).run();
 
+  // Content version = how many bundled translations this DB carries. The app uses
+  // it to seed newly-added translations into an existing user's DB on update
+  // (see src-tauri/src/lib.rs). Bump this whenever a translation is added below.
+  db.prepare(`INSERT INTO settings (key, value) VALUES ('content_version', ?)`).run(
+    String(bundled.length)
+  );
+
+  // Books table comes from the reference translation's versification.
   const insBook = db.prepare(
     `INSERT INTO books (id, name, testament, chapters) VALUES (?, ?, ?, ?)`
   );
+  for (const b of refBooks) {
+    insBook.run(b.bookId, b.name, b.bookId <= OT_COUNT ? 'OT' : 'NT', b.chapterCount);
+  }
+
   const insVerse = db.prepare(
     `INSERT INTO verses (translation_id, book_id, chapter, verse, text)
      VALUES (?, ?, ?, ?, ?)`
   );
-
   db.exec('BEGIN');
-  let verseCount = 0;
-  books.forEach((book, idx) => {
-    const bookId = idx + 1;
-    const chapters = book.data.chapters.length;
-    insBook.run(bookId, book.name, bookId <= OT_COUNT ? 'OT' : 'NT', chapters);
-    for (const ch of book.data.chapters) {
-      const chapter = Number(ch.chapter);
-      for (const vs of ch.verses) {
-        insVerse.run(KJV_ID, bookId, chapter, Number(vs.verse), vs.text);
-        verseCount++;
-      }
+  for (const t of bundled) {
+    for (const v of loaded.get(t.id).verses) {
+      insVerse.run(t.id, v.bookId, v.chapter, v.verse, v.text);
     }
-  });
+  }
   db.exec('COMMIT');
 
   // Populate the search index from the finished verse table.
   db.exec(`INSERT INTO verses_fts(rowid, text) SELECT id, text FROM verses;`);
 
   const { c: books66 } = db.prepare('SELECT COUNT(*) c FROM books').get();
-  const { c: verses } = db.prepare('SELECT COUNT(*) c FROM verses').get();
-  db.close();
-
   console.log(`\nWrote ${OUT}`);
-  console.log(`  books:  ${books66}`);
-  console.log(`  verses: ${verses}`);
+  console.log(`  books: ${books66}`);
+  for (const t of bundled) {
+    const { c } = db.prepare('SELECT COUNT(*) c FROM verses WHERE translation_id = ?').get(t.id);
+    console.log(`  ${t.abbrev}: ${c} verses`);
+  }
+  db.close();
 }
 
 main().catch((err) => {
