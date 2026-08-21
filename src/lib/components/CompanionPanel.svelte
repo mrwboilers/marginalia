@@ -2,50 +2,50 @@
   import { app } from '../store.svelte';
 
   function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape') app.closeCompanion();
-    else if (e.key === 'ArrowLeft') app.companionStep(-1);
-    else if (e.key === 'ArrowRight') app.companionStep(1);
+    if (e.key === 'Escape') app.companion.closePanel();
+    else if (e.key === 'ArrowLeft') app.companion.step(-1);
+    else if (e.key === 'ArrowRight') app.companion.step(1);
   }
 </script>
 
 <svelte:window onkeydown={onKey} />
 
-<div class="overlay" onclick={() => app.closeCompanion()} role="presentation">
+<div class="overlay" onclick={() => app.companion.closePanel()} role="presentation">
   <div class="panel" onclick={(e) => e.stopPropagation()} role="dialog" aria-label="Bible Companion daily readings">
     <div class="head">
       <div class="titles">
         <div class="kicker">Bible Companion</div>
         <div class="date">
-          {app.companionDateLabel}
-          {#if app.companionIsToday}<span class="today-badge">Today</span>{/if}
+          {app.companion.dateLabel}
+          {#if app.companion.isToday}<span class="today-badge">Today</span>{/if}
         </div>
       </div>
       <div class="nav">
-        <button class="btn arrow" aria-label="Previous day" onclick={() => app.companionStep(-1)}>‹</button>
-        {#if !app.companionIsToday}
-          <button class="btn today" onclick={() => app.companionToday()}>Today</button>
+        <button class="btn arrow" aria-label="Previous day" onclick={() => app.companion.step(-1)}>‹</button>
+        {#if !app.companion.isToday}
+          <button class="btn today" onclick={() => app.companion.goToday()}>Today</button>
         {/if}
-        <button class="btn arrow" aria-label="Next day" onclick={() => app.companionStep(1)}>›</button>
+        <button class="btn arrow" aria-label="Next day" onclick={() => app.companion.step(1)}>›</button>
       </div>
-      <button class="close" aria-label="Close" onclick={() => app.closeCompanion()}>×</button>
+      <button class="close" aria-label="Close" onclick={() => app.companion.closePanel()}>×</button>
     </div>
 
     <div class="readings">
-      {#if app.companionReadings.length === 0}
+      {#if app.companion.readings.length === 0}
         <p class="status">No reading scheduled for this day.</p>
       {:else}
-        {#each app.companionReadings as portion, i (portion.label + i)}
-          <div class="reading" class:done={app.isReadingDone(i)}>
+        {#each app.companion.readings as portion, i (portion.label + i)}
+          <div class="reading" class:done={app.companion.isReadingDone(i)}>
             <button
               class="check"
               role="checkbox"
-              aria-checked={app.isReadingDone(i)}
+              aria-checked={app.companion.isReadingDone(i)}
               aria-label={`Mark ${portion.label} read`}
-              onclick={() => app.toggleReadingDone(i)}
+              onclick={() => app.companion.toggleReadingDone(i)}
             >
-              {#if app.isReadingDone(i)}✓{/if}
+              {#if app.companion.isReadingDone(i)}✓{/if}
             </button>
-            <button class="ref" onclick={() => app.openReading(portion)} title="Open in the reading view">
+            <button class="ref" onclick={() => app.companion.openReading(portion)} title="Open in the reading view">
               {portion.label}
             </button>
           </div>
@@ -53,10 +53,10 @@
       {/if}
     </div>
 
-    {#if app.companionReadings.length > 0}
+    {#if app.companion.readings.length > 0}
       <div class="foot">
-        <button class="btn markall" onclick={() => app.toggleDayDone()}>
-          {app.companionDayDone ? 'Unmark day' : 'Mark day read'}
+        <button class="btn markall" onclick={() => app.companion.toggleDayDone()}>
+          {app.companion.dayDone ? 'Unmark day' : 'Mark day read'}
         </button>
         <span class="hint">The whole Bible in a year — Old Testament once, New Testament twice.</span>
       </div>

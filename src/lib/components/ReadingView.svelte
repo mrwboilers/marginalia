@@ -154,7 +154,7 @@
   >
     <div class="running-head">
       <span>{app.book?.name ?? ''}</span>
-      <span>King James Version</span>
+      <span>{app.currentTranslation?.name ?? 'King James Version'}</span>
     </div>
 
     <header class="chapter-head">

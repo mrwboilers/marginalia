@@ -33,10 +33,10 @@
       <ReadingView />
     </div>
   </div>
-  {#if app.searchOpen}
+  {#if app.search.open}
     <SearchPanel />
   {/if}
-  {#if app.companionOpen}
+  {#if app.companion.open}
     <CompanionPanel />
   {/if}
   {#if app.bookmarksOpen}

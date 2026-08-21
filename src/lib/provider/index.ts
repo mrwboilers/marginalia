@@ -1,17 +1,30 @@
-import type { Bookmark, BookMeta, Layer, Mark, Note, SearchHit, UserData, Verse, Xref } from '../types';
+import type {
+  Bookmark, BookMeta, Layer, Mark, Note, SearchHit, Translation,
+  UserData, Verse, VerseInTranslation, Xref,
+} from '../types';
+
+/** Search every translation rather than one (widened `WHERE`). */
+export type AllTranslations = 'all';
 
 /**
  * Storage/content backend. Two implementations:
  *   - SqlProvider   — the real app: bundled SQLite (KJV + FTS) via tauri-plugin-sql.
  *   - HttpProvider  — browser dev only: fetches KJV over HTTP, markings in localStorage.
  * The rest of the app talks only to this interface (the roadmap's provider design).
+ *
+ * Content methods are translation-scoped; user-data methods are translation-agnostic
+ * because notes/bookmarks/progress anchor to canonical references. Book metadata is
+ * shared across translations (they use the same 66-book canon for now).
  */
 export interface BibleProvider {
   init(): Promise<void>;
   books(): Promise<BookMeta[]>;
-  chapter(bookId: number, chapter: number): Promise<Verse[]>;
+  translations(): Promise<Translation[]>;
+  chapter(translationId: number, bookId: number, chapter: number): Promise<Verse[]>;
   xrefs(bookId: number, chapter: number): Promise<Xref[]>;
-  search(query: string, limit?: number): Promise<SearchHit[]>;
+  search(translationId: number | AllTranslations, query: string, limit?: number): Promise<SearchHit[]>;
+  /** The same canonical verse across every local translation (Compare view). */
+  compareVerse(bookId: number, chapter: number, verse: number): Promise<VerseInTranslation[]>;
 
   loadUserData(): Promise<UserData>;
   upsertMark(mark: Mark): Promise<void>;

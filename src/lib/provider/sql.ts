@@ -1,9 +1,12 @@
 import Database from '@tauri-apps/plugin-sql';
-import type { Bookmark, BookMeta, Layer, Mark, Note, SearchHit, UserData, Verse, Xref } from '../types';
-import type { BibleProvider } from './index';
+import type {
+  Bookmark, BookMeta, Layer, Mark, Note, SearchHit, Translation,
+  UserData, Verse, VerseInTranslation, Xref,
+} from '../types';
+import { KJV_TRANSLATION_ID } from '../types';
+import type { AllTranslations, BibleProvider } from './index';
 import { loadChapterXrefs } from './xrefs';
-
-const TRANSLATION_ID = 1; // KJV
+import { toTranslation } from './translation-map';
 
 /** Notes store tags as a JSON array string; tolerate null/legacy values. */
 function parseTags(raw: string | null): string[] | undefined {
@@ -42,6 +45,43 @@ export class SqlProvider implements BibleProvider {
          label TEXT NOT NULL, created TEXT NOT NULL
        )`
     );
+    await this.migrateForTranslations();
+  }
+
+  /** Add multi-translation columns to older DBs and backfill existing data as KJV. */
+  private async migrateForTranslations(): Promise<void> {
+    // Marks become translation-specific; existing marks are KJV.
+    const markCols = await this.db.select<{ name: string }[]>(`PRAGMA table_info(marks)`);
+    if (!markCols.some((c) => c.name === 'translation_id')) {
+      await this.db.execute(`ALTER TABLE marks ADD COLUMN translation_id INTEGER`);
+      await this.db.execute(`UPDATE marks SET translation_id = $1 WHERE translation_id IS NULL`, [
+        KJV_TRANSLATION_ID,
+      ]);
+    }
+    // Expand translation metadata for licensing/provenance.
+    const tCols = await this.db.select<{ name: string }[]>(`PRAGMA table_info(translations)`);
+    const add = async (col: string, type: string) => {
+      if (!tCols.some((c) => c.name === col)) {
+        await this.db.execute(`ALTER TABLE translations ADD COLUMN ${col} ${type}`);
+      }
+    };
+    await add('public_domain', 'INTEGER');
+    await add('license_url', 'TEXT');
+    await add('copyright', 'TEXT');
+    await add('attribution', 'TEXT');
+    await add('source_url', 'TEXT');
+    await add('text_version', 'TEXT');
+    await add('has_strongs', 'INTEGER');
+    // Backfill the existing KJV row's new fields (public-domain, Strong's available).
+    await this.db.execute(
+      `UPDATE translations
+         SET public_domain = COALESCE(public_domain, 1),
+             has_strongs   = COALESCE(has_strongs, 1),
+             source_url    = COALESCE(source_url, 'https://github.com/aruljohn/Bible-kjv'),
+             text_version  = COALESCE(text_version, 'aruljohn/Bible-kjv')
+       WHERE id = $1`,
+      [KJV_TRANSLATION_ID]
+    );
   }
 
   async books(): Promise<BookMeta[]> {
@@ -50,21 +90,46 @@ export class SqlProvider implements BibleProvider {
     );
   }
 
-  async chapter(bookId: number, chapter: number): Promise<Verse[]> {
+  async translations(): Promise<Translation[]> {
+    const rows = await this.db.select<Record<string, unknown>[]>(
+      `SELECT id, abbrev, name, language, license, is_local,
+              public_domain, license_url, copyright, attribution, source_url,
+              text_version, has_strongs
+       FROM translations ORDER BY id`
+    );
+    return rows.map(toTranslation);
+  }
+
+  async chapter(translationId: number, bookId: number, chapter: number): Promise<Verse[]> {
     const rows = await this.db.select<{ v: number; text: string }[]>(
       `SELECT verse AS v, text FROM verses
        WHERE translation_id = $1 AND book_id = $2 AND chapter = $3
        ORDER BY verse`,
-      [TRANSLATION_ID, bookId, chapter]
+      [translationId, bookId, chapter]
     );
     return rows.map((r) => ({ v: r.v, text: r.text }));
+  }
+
+  async compareVerse(bookId: number, chapter: number, verse: number): Promise<VerseInTranslation[]> {
+    const rows = await this.db.select<{ translationId: number; abbrev: string; text: string }[]>(
+      `SELECT v.translation_id AS translationId, t.abbrev, v.text
+       FROM verses v JOIN translations t ON t.id = v.translation_id
+       WHERE v.book_id = $1 AND v.chapter = $2 AND v.verse = $3
+       ORDER BY t.id`,
+      [bookId, chapter, verse]
+    );
+    return rows;
   }
 
   async xrefs(bookId: number, chapter: number): Promise<Xref[]> {
     return loadChapterXrefs(bookId, chapter);
   }
 
-  async search(query: string, limit = 100): Promise<SearchHit[]> {
+  async search(
+    translationId: number | AllTranslations,
+    query: string,
+    limit = 100
+  ): Promise<SearchHit[]> {
     const q = query.trim();
     if (!q) return [];
     // FTS5 prefix query; quote to tolerate punctuation.
@@ -72,15 +137,18 @@ export class SqlProvider implements BibleProvider {
       .split(/\s+/)
       .map((t) => `"${t.replace(/"/g, '')}"`)
       .join(' ');
+    const all = translationId === 'all';
     return this.db.select<SearchHit[]>(
-      `SELECT b.id AS bookId, b.name AS bookName, v.chapter, v.verse, v.text
+      `SELECT v.translation_id AS translationId, t.abbrev AS translationAbbrev,
+              b.id AS bookId, b.name AS bookName, v.chapter, v.verse, v.text
        FROM verses_fts f
        JOIN verses v ON v.id = f.rowid
        JOIN books b ON b.id = v.book_id
-       WHERE f.text MATCH $1 AND v.translation_id = $2
-       ORDER BY v.book_id, v.chapter, v.verse
-       LIMIT $3`,
-      [match, TRANSLATION_ID, limit]
+       JOIN translations t ON t.id = v.translation_id
+       WHERE f.text MATCH $1 ${all ? '' : 'AND v.translation_id = $2'}
+       ORDER BY v.translation_id, v.book_id, v.chapter, v.verse
+       LIMIT ${all ? '$2' : '$3'}`,
+      all ? [match, limit] : [match, translationId, limit]
     );
   }
 
@@ -90,11 +158,11 @@ export class SqlProvider implements BibleProvider {
     >(`SELECT id, name, color, visible FROM layers ORDER BY sort`);
     const marks = await this.db.select<
       {
-        id: string; bookId: number; chapter: number; verse: number;
+        id: string; translationId: number | null; bookId: number; chapter: number; verse: number;
         start: number; end: number; type: string; color: string; layerId: string;
       }[]
     >(
-      `SELECT id, book_id AS bookId, chapter, verse,
+      `SELECT id, translation_id AS translationId, book_id AS bookId, chapter, verse,
               start_char AS start, end_char AS end, type, color, layer_id AS layerId
        FROM marks`
     );
@@ -104,7 +172,10 @@ export class SqlProvider implements BibleProvider {
 
     return {
       layers: layers.map((l) => ({ ...l, visible: !!l.visible })),
-      marks: marks as Mark[],
+      marks: marks.map((m) => ({
+        ...m,
+        translationId: m.translationId ?? KJV_TRANSLATION_ID,
+      })) as Mark[],
       notes: notes.map((n) => ({
         id: n.id,
         bookId: n.bookId,
@@ -120,12 +191,13 @@ export class SqlProvider implements BibleProvider {
 
   async upsertMark(m: Mark): Promise<void> {
     const now = new Date().toISOString();
+    const translationId = m.translationId ?? KJV_TRANSLATION_ID;
     await this.db.execute(
-      `INSERT INTO marks (id, book_id, chapter, verse, start_char, end_char, type, color, layer_id, created, updated)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)
+      `INSERT INTO marks (id, translation_id, book_id, chapter, verse, start_char, end_char, type, color, layer_id, created, updated)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11)
        ON CONFLICT(id) DO UPDATE SET
-         start_char=$5, end_char=$6, type=$7, color=$8, layer_id=$9, updated=$10`,
-      [m.id, m.bookId, m.chapter, m.verse, m.start, m.end, m.type, m.color, m.layerId, now]
+         translation_id=$2, start_char=$6, end_char=$7, type=$8, color=$9, layer_id=$10, updated=$11`,
+      [m.id, translationId, m.bookId, m.chapter, m.verse, m.start, m.end, m.type, m.color, m.layerId, now]
     );
   }
 

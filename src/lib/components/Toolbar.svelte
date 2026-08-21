@@ -84,8 +84,15 @@
       <div class="brand-sub">Study Bible</div>
     </div>
     <div class="pickers">
-      <select aria-label="Translation" disabled>
-        <option>King James (KJV)</option>
+      <select
+        aria-label="Translation"
+        value={app.translationId}
+        disabled={app.translations.length <= 1}
+        onchange={(e) => app.setTranslation(Number((e.target as HTMLSelectElement).value))}
+      >
+        {#each app.translations as t (t.id)}
+          <option value={t.id}>{t.name}</option>
+        {/each}
       </select>
       <div class="nav">
         <button class="btn nav-arrow hist" aria-label="Back" title="Back" disabled={!app.canBack} onclick={() => app.back()}>↶</button>
@@ -118,8 +125,8 @@
         bind:value={jumpValue}
         onkeydown={onJump}
       />
-      <button class="btn search-btn" onclick={() => app.openSearch()}>Search</button>
-      <button class="btn companion-btn" onclick={() => app.openCompanion()}>Companion</button>
+      <button class="btn search-btn" onclick={() => app.search.openPanel()}>Search</button>
+      <button class="btn companion-btn" onclick={() => app.companion.openPanel()}>Companion</button>
       <button class="btn" onclick={() => app.openBookmarks()}>Bookmarks</button>
     </div>
   </div>
@@ -173,9 +180,12 @@
 
     <div class="group">
       <!-- Red-letter toggle hidden until a words-of-Christ dataset is bundled (it was inert). -->
-      <button class="btn" class:active={app.strongsOn} onclick={() => app.toggleStrongs()}>
-        Strong's: {app.strongsOn ? 'on' : 'off'}
-      </button>
+      <!-- Strong's is tied to KJV wording, so only shown for translations that have it. -->
+      {#if app.strongsAvailable}
+        <button class="btn" class:active={app.strongsOn} onclick={() => app.toggleStrongs()}>
+          Strong's: {app.strongsOn ? 'on' : 'off'}
+        </button>
+      {/if}
     </div>
     <div class="group">
       <button class="btn" aria-label="Decrease font size" onclick={() => app.adjustFont(-0.1)}>A−</button>

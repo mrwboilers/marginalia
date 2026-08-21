@@ -10,6 +10,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { TRANSLATIONS } from './translations.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'src-tauri', 'db', 'marginalia.db');
@@ -55,8 +56,15 @@ async function main() {
       abbrev TEXT NOT NULL,
       name TEXT NOT NULL,
       language TEXT NOT NULL,
-      license TEXT NOT NULL,
-      is_local INTEGER NOT NULL DEFAULT 1
+      license TEXT NOT NULL,          -- license name, e.g. "Public Domain"
+      is_local INTEGER NOT NULL DEFAULT 1,
+      public_domain INTEGER NOT NULL DEFAULT 0,
+      license_url TEXT,
+      copyright TEXT,
+      attribution TEXT,
+      source_url TEXT,
+      text_version TEXT,
+      has_strongs INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE books (
       id INTEGER PRIMARY KEY,
@@ -81,8 +89,9 @@ async function main() {
       visible INTEGER NOT NULL DEFAULT 1, sort INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE marks (
-      id TEXT PRIMARY KEY, book_id INTEGER NOT NULL, chapter INTEGER NOT NULL,
-      verse INTEGER NOT NULL, start_char INTEGER NOT NULL, end_char INTEGER NOT NULL,
+      id TEXT PRIMARY KEY, translation_id INTEGER NOT NULL, book_id INTEGER NOT NULL,
+      chapter INTEGER NOT NULL, verse INTEGER NOT NULL,
+      start_char INTEGER NOT NULL, end_char INTEGER NOT NULL,
       type TEXT NOT NULL, color TEXT NOT NULL, layer_id TEXT NOT NULL,
       created TEXT NOT NULL, updated TEXT NOT NULL
     );
@@ -103,10 +112,21 @@ async function main() {
     );
   `);
 
-  db.prepare(
-    `INSERT INTO translations (id, abbrev, name, language, license, is_local)
-     VALUES (1, 'KJV', 'King James Version', 'en', 'Public Domain', 1)`
-  ).run();
+  const insTranslation = db.prepare(
+    `INSERT INTO translations
+       (id, abbrev, name, language, license, is_local, public_domain,
+        license_url, copyright, attribution, source_url, text_version, has_strongs)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  for (const t of TRANSLATIONS) {
+    insTranslation.run(
+      t.id, t.abbrev, t.name, t.language, t.licenseName, t.isLocal ? 1 : 0,
+      t.publicDomain ? 1 : 0, t.licenseUrl || '', t.copyright || '', t.attribution || '',
+      t.sourceUrl || '', t.textVersion || '', t.hasStrongs ? 1 : 0
+    );
+  }
+  // Only KJV text is bundled (aruljohn/Bible-kjv). Its verses use its translation id.
+  const KJV_ID = TRANSLATIONS.find((t) => t.abbrev === 'KJV').id;
 
   db.prepare(
     `INSERT INTO layers (id, name, color, visible, sort) VALUES
@@ -118,7 +138,7 @@ async function main() {
   );
   const insVerse = db.prepare(
     `INSERT INTO verses (translation_id, book_id, chapter, verse, text)
-     VALUES (1, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?)`
   );
 
   db.exec('BEGIN');
@@ -130,7 +150,7 @@ async function main() {
     for (const ch of book.data.chapters) {
       const chapter = Number(ch.chapter);
       for (const vs of ch.verses) {
-        insVerse.run(bookId, chapter, Number(vs.verse), vs.text);
+        insVerse.run(KJV_ID, bookId, chapter, Number(vs.verse), vs.text);
         verseCount++;
       }
     }
