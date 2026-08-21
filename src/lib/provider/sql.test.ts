@@ -1,3 +1,7 @@
+// @vitest-environment node
+// This suite exercises Node's built-in SQLite. It must run in the `node`
+// environment (not the project-wide happy-dom one), otherwise Vite refuses to
+// bundle the `node:sqlite` builtin for the client environment.
 import { describe, it, expect, beforeAll } from 'vitest';
 // @ts-expect-error — Node's built-in SQLite; no @types/node in this project.
 import { DatabaseSync } from 'node:sqlite';
