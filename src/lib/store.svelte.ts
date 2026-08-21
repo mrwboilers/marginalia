@@ -1,14 +1,14 @@
 import type {
-  Bookmark, BookMeta, CompanionPortion, Layer, Mark, MarkingsExport, Note, SearchHit, StrongSeg, ToolMode, Verse, Xref,
+  Bookmark, BookMeta, Layer, Mark, MarkingsExport, Note, StrongSeg, ToolMode, Translation, Verse, Xref,
 } from './types';
-import { HIGHLIGHT_COLORS, LAYER_COLORS } from './types';
+import { HIGHLIGHT_COLORS, KJV_TRANSLATION_ID, LAYER_COLORS } from './types';
 import { DEFAULT_LAYERS, getProvider, type BibleProvider } from './provider';
 import { loadLexicon, loadStrongsChapter } from './provider/strongs';
-import { companionKeys, companionLabel, keyFor, loadCompanion, readingsFor } from './provider/companion';
 import { parseReference } from './reference';
-import { matchNotes, type NoteHit } from './notesearch';
 import { autoBackup, manualBackup, revealBackups } from './backup';
-import { renderPieces, type RenderPiece } from './marks';
+import { marksForVerse, normalizeImportedMarks, renderPieces, type RenderPiece } from './marks';
+import { CompanionState } from './state/companion.svelte';
+import { SearchState } from './state/search.svelte';
 import { parseRef } from './books';
 
 export type { RenderPiece } from './marks';
@@ -28,6 +28,8 @@ class AppState {
   loadingChapter = $state(false);
 
   books = $state<BookMeta[]>([]);
+  translations = $state<Translation[]>([]);
+  translationId = $state(KJV_TRANSLATION_ID);
   bookId = $state(DEFAULT_BOOK);
   chapter = $state(DEFAULT_CHAPTER);
   verses = $state<Verse[]>([]);
@@ -46,15 +48,6 @@ class AppState {
   marks = $state<Mark[]>([]);
   notes = $state<Note[]>([]);
 
-  searchOpen = $state(false);
-  searchQuery = $state('');
-  searching = $state(false);
-  searchResults = $state<SearchHit[]>([]);
-  searchMode = $state<'scripture' | 'notes'>('scripture');
-  noteResults = $state<NoteHit[]>([]);
-  noteTagFilter = $state<string | null>(null);
-  allNoteTags = $derived([...new Set(this.notes.flatMap((n) => n.tags ?? []))].sort());
-
   bookmarks = $state<Bookmark[]>([]);
   bookmarksOpen = $state(false);
   layersOpen = $state(false);
@@ -66,15 +59,23 @@ class AppState {
   toast = $state('');
   private toastTimer: ReturnType<typeof setTimeout> | undefined;
 
-  // Bible Companion (Robert Roberts' reading plan).
-  companionOpen = $state(false);
-  companionKey = $state('1-1');       // the day being viewed ("month-day")
-  companionTodayKey = $state('1-1');  // the real current calendar day
-  companionProgress = $state<Set<string>>(new Set());
+  // Domain sub-stores extracted from this god object (composed here; they reach
+  // back into shared state only through injected getters + a navigate callback).
+  companion = new CompanionState((bookId, chapter) => this.goTo(bookId, chapter));
+  search = new SearchState({
+    provider: () => this.provider,
+    notes: () => this.notes,
+    books: () => this.books,
+    translationId: () => this.translationId,
+    navigate: (bookId, chapter) => this.goTo(bookId, chapter),
+  });
 
   private noteTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   book = $derived(this.books.find((b) => b.id === this.bookId));
+  currentTranslation = $derived(this.translations.find((t) => t.id === this.translationId));
+  /** Strong's is tied to the KJV wording, so it's only offered for translations that have it. */
+  strongsAvailable = $derived(this.currentTranslation?.hasStrongs ?? false);
 
   visibleLayerIds = $derived(new Set(this.layers.filter((l) => l.visible).map((l) => l.id)));
 
@@ -89,17 +90,10 @@ class AppState {
     this.bookmarks.some((b) => b.bookId === this.bookId && b.chapter === this.chapter)
   );
 
-  companionReadings = $derived(readingsFor(this.companionKey));
-  companionDateLabel = $derived(companionLabel(this.companionKey));
-  companionIsToday = $derived(this.companionKey === this.companionTodayKey);
-  companionDayDone = $derived(
-    this.companionReadings.length > 0 &&
-      this.companionReadings.every((_, i) => this.companionProgress.has(`${this.companionKey}:${i}`))
-  );
-
   async init() {
     this.provider = await getProvider();
     this.books = await this.provider.books();
+    this.translations = await this.provider.translations();
     const data = await this.provider.loadUserData();
 
     this.layers = data.layers.length ? data.layers : structuredClone(DEFAULT_LAYERS);
@@ -107,11 +101,7 @@ class AppState {
     this.notes = data.notes;
     this.activeLayerId = this.layers[0].id;
 
-    await loadCompanion();
-    const now = new Date();
-    this.companionTodayKey = keyFor(now.getMonth() + 1, now.getDate());
-    this.companionKey = this.companionTodayKey;
-    this.companionProgress = new Set(await this.provider.loadReadingProgress());
+    await this.companion.init(this.provider);
 
     // Restore bookmarks and the last-read position / font size.
     this.bookmarks = await this.provider.loadBookmarks();
@@ -126,6 +116,10 @@ class AppState {
     }
     if (settings.activeLayer && this.layers.some((l) => l.id === settings.activeLayer)) {
       this.activeLayerId = settings.activeLayer;
+    }
+    const savedTranslation = Number(settings.translation);
+    if (savedTranslation && this.translations.some((t) => t.id === savedTranslation)) {
+      this.translationId = savedTranslation;
     }
 
     await this.loadChapter(this.bookId, this.chapter);
@@ -151,16 +145,15 @@ class AppState {
     this.loadingChapter = true;
     try {
       const [verses, xrefs] = await Promise.all([
-        this.provider.chapter(bookId, chapter),
+        this.provider.chapter(this.translationId, bookId, chapter),
         this.provider.xrefs(bookId, chapter),
       ]);
       this.verses = verses;
       this.xrefs = xrefs;
       this.bookId = bookId;
       this.chapter = chapter;
-      this.strongsByVerse = this.strongsOn
-        ? await loadStrongsChapter(bookId, chapter)
-        : new Map();
+      this.strongsByVerse =
+        this.strongsOn && this.strongsAvailable ? await loadStrongsChapter(bookId, chapter) : new Map();
       // Remember where we are so the app reopens here next time. One key (not two)
       // so the read-modify-write can't race and drop half the position.
       void this.provider.saveSetting('lastRef', `${bookId}:${chapter}`);
@@ -228,7 +221,17 @@ class AppState {
     void this.provider?.saveSetting('fontScale', String(this.fontScale));
   }
 
+  /** Switch the reading translation: persist, reload the chapter, drop Strong's if N/A. */
+  async setTranslation(id: number) {
+    if (id === this.translationId || !this.translations.some((t) => t.id === id)) return;
+    this.translationId = id;
+    void this.provider?.saveSetting('translation', String(id));
+    if (!this.strongsAvailable) this.strongsOn = false;
+    await this.loadChapter(this.bookId, this.chapter);
+  }
+
   async toggleStrongs() {
+    if (!this.strongsAvailable) return; // Strong's is KJV-only
     this.strongsOn = !this.strongsOn;
     if (this.strongsOn) {
       void loadLexicon();
@@ -352,6 +355,7 @@ class AppState {
     if (end <= start) return;
     const mark: Mark = {
       id: crypto.randomUUID(),
+      translationId: this.translationId,
       bookId: this.bookId,
       chapter: this.chapter,
       verse: v,
@@ -426,13 +430,13 @@ class AppState {
   }
 
   private applicableMarks(v: number): Mark[] {
-    return this.marks.filter(
-      (m) =>
-        m.bookId === this.bookId &&
-        m.chapter === this.chapter &&
-        m.verse === v &&
-        this.visibleLayerIds.has(m.layerId)
-    );
+    return marksForVerse(this.marks, {
+      translationId: this.translationId,
+      bookId: this.bookId,
+      chapter: this.chapter,
+      verse: v,
+      isLayerVisible: (id) => this.visibleLayerIds.has(id),
+    });
   }
 
   /**
@@ -462,58 +466,6 @@ class AppState {
       if (seg.s && seg.s.length) items.push({ strongs: seg.s });
     }
     return items;
-  }
-
-  // --- Search -------------------------------------------------------------
-  openSearch() {
-    this.searchOpen = true;
-  }
-  closeSearch() {
-    this.searchOpen = false;
-  }
-  async runSearch(query: string) {
-    this.searchQuery = query;
-    if (this.searchMode === 'notes') {
-      this.runNoteSearch(query);
-      return;
-    }
-    if (!query.trim() || !this.provider) {
-      this.searchResults = [];
-      return;
-    }
-    this.searching = true;
-    try {
-      this.searchResults = await this.provider.search(query, 200);
-    } finally {
-      this.searching = false;
-    }
-  }
-  /** Search the user's own notes (in memory — no provider round-trip). */
-  runNoteSearch(query: string) {
-    this.noteResults = matchNotes(
-      this.notes,
-      query,
-      (id) => this.books.find((b) => b.id === id)?.name ?? '',
-      this.noteTagFilter
-    );
-  }
-  /** Toggle a tag filter in the notes search and re-run. */
-  setNoteTagFilter(tag: string | null) {
-    this.noteTagFilter = this.noteTagFilter === tag ? null : tag;
-    this.runNoteSearch(this.searchQuery);
-  }
-  setSearchMode(mode: 'scripture' | 'notes') {
-    if (mode === this.searchMode) return;
-    this.searchMode = mode;
-    void this.runSearch(this.searchQuery);
-  }
-  goToHit(hit: SearchHit) {
-    this.searchOpen = false;
-    this.goTo(hit.bookId, hit.chapter);
-  }
-  goToNoteHit(hit: NoteHit) {
-    this.searchOpen = false;
-    this.goTo(hit.bookId, hit.chapter);
   }
 
   // --- Bookmarks -----------------------------------------------------------
@@ -549,57 +501,14 @@ class AppState {
     this.goTo(bm.bookId, bm.chapter);
   }
 
-  // --- Bible Companion -----------------------------------------------------
-  openCompanion() {
-    this.companionKey = this.companionTodayKey; // always land on today
-    this.companionOpen = true;
-  }
-  closeCompanion() {
-    this.companionOpen = false;
-  }
-  companionToday() {
-    this.companionKey = this.companionTodayKey;
-  }
-  /** Step to the previous/next scheduled day, wrapping around the year. */
-  companionStep(delta: number) {
-    const keys = companionKeys();
-    const i = keys.indexOf(this.companionKey);
-    if (i < 0) return;
-    this.companionKey = keys[(i + delta + keys.length) % keys.length];
-  }
-  isReadingDone(index: number): boolean {
-    return this.companionProgress.has(`${this.companionKey}:${index}`);
-  }
-  toggleReadingDone(index: number) {
-    const key = `${this.companionKey}:${index}`;
-    const done = !this.companionProgress.has(key);
-    const next = new Set(this.companionProgress);
-    if (done) next.add(key);
-    else next.delete(key);
-    this.companionProgress = next;
-    void this.provider?.setReadingDone(key, done);
-  }
-  /** Check or uncheck all of the current day's portions at once. */
-  toggleDayDone() {
-    const target = !this.companionDayDone;
-    this.companionReadings.forEach((_, i) => {
-      if (this.isReadingDone(i) !== target) this.toggleReadingDone(i);
-    });
-  }
-  /** Open a portion in the reading view (navigates to its first chapter). */
-  openReading(portion: CompanionPortion) {
-    this.companionOpen = false;
-    this.goTo(portion.bookId, portion.start);
-  }
-
   // --- Cross-reference lookup (hover preview + click to navigate) ----------
   private refChapterCache = new Map<string, Verse[]>();
 
   private async chapterFor(bookId: number, chapter: number): Promise<Verse[]> {
-    const key = `${bookId}:${chapter}`;
+    const key = `${this.translationId}:${bookId}:${chapter}`; // preview text is per-translation
     let verses = this.refChapterCache.get(key);
     if (!verses && this.provider) {
-      verses = await this.provider.chapter(bookId, chapter);
+      verses = await this.provider.chapter(this.translationId, bookId, chapter);
       this.refChapterCache.set(key, verses);
     }
     return verses ?? [];
@@ -645,12 +554,12 @@ class AppState {
   // --- Export / import ----------------------------------------------------
   exportJSON(): string {
     const data: MarkingsExport = {
-      version: 3,
+      version: 4,
       exportedAt: new Date().toISOString(),
       layers: this.layers,
       marks: this.marks,
       notes: this.notes,
-      readingProgress: [...this.companionProgress],
+      readingProgress: this.companion.progressList(),
       bookmarks: this.bookmarks,
     };
     return JSON.stringify(data, null, 2);
@@ -658,21 +567,21 @@ class AppState {
 
   async importJSON(raw: string) {
     const data = JSON.parse(raw) as MarkingsExport;
-    if (data.version !== 2 && data.version !== 3) {
+    if (data.version !== 2 && data.version !== 3 && data.version !== 4) {
       throw new Error(`Unsupported export version: ${data.version}`);
     }
     if (Array.isArray(data.layers) && data.layers.length) this.layers = data.layers;
-    this.marks = Array.isArray(data.marks) ? data.marks : [];
+    // Pre-v4 exports lack mark translationId — backfill to KJV so they still render.
+    this.marks = normalizeImportedMarks(Array.isArray(data.marks) ? data.marks : []);
     this.notes = Array.isArray(data.notes) ? data.notes : [];
     await this.provider?.replaceUserData({
       layers: this.layers,
       marks: this.marks,
       notes: this.notes,
     });
-    // v3 additions — restore only when present (older exports omit them).
+    // v3+ additions — restore only when present (older exports omit them).
     if (Array.isArray(data.readingProgress)) {
-      this.companionProgress = new Set(data.readingProgress);
-      await this.provider?.replaceReadingProgress(data.readingProgress);
+      await this.companion.replaceProgress(data.readingProgress);
     }
     if (Array.isArray(data.bookmarks)) {
       this.bookmarks = data.bookmarks;

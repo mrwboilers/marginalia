@@ -8,6 +8,39 @@ export interface BookMeta {
   chapters: number;
 }
 
+/** The KJV translation id — the historical default and the value existing
+ *  KJV-only markings are backfilled to. */
+export const KJV_TRANSLATION_ID = 1;
+
+/**
+ * A Bible translation with the metadata needed to render it and to attribute /
+ * license it accurately (the eventual "About → Bible Texts & Licenses" view is
+ * generated from this). `publicDomain` is explicit rather than implied.
+ */
+export interface Translation {
+  id: number;
+  /** Short code, e.g. "KJV". */
+  abbrev: string;
+  name: string;
+  /** ISO language code, e.g. "en". */
+  language: string;
+  publicDomain: boolean;
+  /** Human-readable license name, e.g. "Public Domain", "CC BY-SA 4.0". */
+  licenseName: string;
+  licenseUrl?: string;
+  copyright?: string;
+  /** Attribution text a license may require us to display. */
+  attribution?: string;
+  /** Where the text came from (provenance). */
+  sourceUrl?: string;
+  /** Source text/version identifier, e.g. "eng-kjv2006". */
+  textVersion?: string;
+  /** Strong's numbers are available for this translation (KJV only for now). */
+  hasStrongs: boolean;
+  /** True when bundled/offline; false for a future remote-API translation. */
+  isLocal: boolean;
+}
+
 /** A verse as loaded for display. */
 export interface Verse {
   v: number;
@@ -28,12 +61,21 @@ export interface AltReading {
   note: string;
 }
 
-/** A full-text search hit. */
+/** A full-text search hit. Carries translation identity so a result is unambiguous. */
 export interface SearchHit {
+  translationId: number;
+  translationAbbrev: string;
   bookId: number;
   bookName: string;
   chapter: number;
   verse: number;
+  text: string;
+}
+
+/** The same canonical verse fetched across several translations (Compare view). */
+export interface VerseInTranslation {
+  translationId: number;
+  abbrev: string;
   text: string;
 }
 
@@ -83,6 +125,12 @@ export type MarkType = 'highlight' | 'underline';
  */
 export interface Mark {
   id: string;
+  /**
+   * The translation this marking belongs to. Character offsets are wording-
+   * specific, so a KJV highlight must NOT render against WEB/BSB/etc. Absent on
+   * pre-multi-translation data — treat a missing value as KJV (see marksForVerse).
+   */
+  translationId: number;
   bookId: number;
   chapter: number;
   verse: number;
@@ -138,8 +186,8 @@ export interface UserData {
 
 /** The exportable/importable user-data bundle (the data-ownership promise). */
 export interface MarkingsExport {
-  /** 2 = markings only; 3 adds reading progress + bookmarks. */
-  version: 2 | 3;
+  /** 2 = markings only; 3 adds reading progress + bookmarks; 4 adds mark translationId. */
+  version: 2 | 3 | 4;
   exportedAt: string;
   layers: Layer[];
   marks: Mark[];

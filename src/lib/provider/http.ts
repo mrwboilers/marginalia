@@ -1,6 +1,25 @@
-import type { Bookmark, BookMeta, Layer, Mark, Note, SearchHit, UserData, Verse, Xref } from '../types';
-import { DEFAULT_LAYERS, type BibleProvider } from './index';
+import type {
+  Bookmark, BookMeta, Layer, Mark, Note, SearchHit, Translation,
+  UserData, Verse, VerseInTranslation, Xref,
+} from '../types';
+import { KJV_TRANSLATION_ID } from '../types';
+import { DEFAULT_LAYERS, type AllTranslations, type BibleProvider } from './index';
+import { normalizeImportedMarks } from '../marks';
 import { loadChapterXrefs } from './xrefs';
+
+// Browser-dev serves only KJV; this mirrors the bundled translations registry.
+const KJV: Translation = {
+  id: KJV_TRANSLATION_ID,
+  abbrev: 'KJV',
+  name: 'King James Version',
+  language: 'en',
+  publicDomain: true,
+  licenseName: 'Public Domain',
+  sourceUrl: 'https://github.com/aruljohn/Bible-kjv',
+  textVersion: 'aruljohn/Bible-kjv',
+  hasStrongs: true,
+  isLocal: true,
+};
 
 const BASE = 'https://raw.githubusercontent.com/aruljohn/Bible-kjv/master';
 const STORE_KEY = 'marginalia.userdata.v2';
@@ -48,6 +67,10 @@ export class HttpProvider implements BibleProvider {
     return this.meta;
   }
 
+  async translations(): Promise<Translation[]> {
+    return [KJV];
+  }
+
   private async raw(bookId: number): Promise<RawBook> {
     const cached = this.bookCache.get(bookId);
     if (cached) return cached;
@@ -59,17 +82,28 @@ export class HttpProvider implements BibleProvider {
     return data;
   }
 
-  async chapter(bookId: number, chapter: number): Promise<Verse[]> {
+  // Browser-dev only ever has KJV, so translationId is accepted but not used.
+  async chapter(_translationId: number, bookId: number, chapter: number): Promise<Verse[]> {
     const data = await this.raw(bookId);
     const ch = data.chapters.find((c) => Number(c.chapter) === chapter);
     return (ch?.verses ?? []).map((v) => ({ v: Number(v.verse), text: v.text }));
+  }
+
+  async compareVerse(bookId: number, chapter: number, verse: number): Promise<VerseInTranslation[]> {
+    const verses = await this.chapter(KJV_TRANSLATION_ID, bookId, chapter);
+    const v = verses.find((x) => x.v === verse);
+    return v ? [{ translationId: KJV.id, abbrev: KJV.abbrev, text: v.text }] : [];
   }
 
   async xrefs(bookId: number, chapter: number): Promise<Xref[]> {
     return loadChapterXrefs(bookId, chapter);
   }
 
-  async search(query: string, limit = 100): Promise<SearchHit[]> {
+  async search(
+    _translationId: number | AllTranslations,
+    query: string,
+    limit = 100
+  ): Promise<SearchHit[]> {
     const q = query.trim().toLowerCase();
     if (!q) return [];
     const terms = q.split(/\s+/);
@@ -84,6 +118,7 @@ export class HttpProvider implements BibleProvider {
           const lower = vs.text.toLowerCase();
           if (terms.every((t) => lower.includes(t))) {
             hits.push({
+              translationId: KJV.id, translationAbbrev: KJV.abbrev,
               bookId: b.id, bookName: b.name,
               chapter: Number(ch.chapter), verse: Number(vs.verse), text: vs.text,
             });
@@ -108,7 +143,10 @@ export class HttpProvider implements BibleProvider {
   }
 
   async loadUserData(): Promise<UserData> {
-    return this.read();
+    const d = this.read();
+    // Backfill marks saved before they carried a translation (treat as KJV).
+    d.marks = normalizeImportedMarks(d.marks);
+    return d;
   }
 
   async upsertMark(m: Mark): Promise<void> {
