@@ -31,6 +31,21 @@
     Array.from({ length: app.book?.chapters ?? 0 }, (_, i) => i + 1)
   );
 
+  let jumpValue = $state('');
+  let jumpBad = $state(false);
+  function onJump(e: KeyboardEvent) {
+    if (e.key !== 'Enter') {
+      jumpBad = false;
+      return;
+    }
+    if (app.jumpToReference(jumpValue)) {
+      jumpValue = '';
+      jumpBad = false;
+    } else {
+      jumpBad = true;
+    }
+  }
+
   function onBookChange(e: Event) {
     app.goTo(Number((e.target as HTMLSelectElement).value), 1);
   }
@@ -73,6 +88,8 @@
         <option>King James (KJV)</option>
       </select>
       <div class="nav">
+        <button class="btn nav-arrow hist" aria-label="Back" title="Back" disabled={!app.canBack} onclick={() => app.back()}>↶</button>
+        <button class="btn nav-arrow hist" aria-label="Forward" title="Forward" disabled={!app.canForward} onclick={() => app.forward()}>↷</button>
         <button class="btn nav-arrow" aria-label="Previous chapter" disabled={!app.canPrev} onclick={() => app.prevChapter()}>‹</button>
         <select aria-label="Book" value={app.bookId} onchange={onBookChange}>
           {#each app.books as b (b.id)}
@@ -93,6 +110,14 @@
           onclick={() => app.toggleBookmark()}
         >{app.isBookmarked ? '★' : '☆'}</button>
       </div>
+      <input
+        class="jump"
+        class:bad={jumpBad}
+        placeholder="Go to… (e.g. Jn 3)"
+        aria-label="Go to reference"
+        bind:value={jumpValue}
+        onkeydown={onJump}
+      />
       <button class="btn search-btn" onclick={() => app.openSearch()}>Search</button>
       <button class="btn companion-btn" onclick={() => app.openCompanion()}>Companion</button>
       <button class="btn" onclick={() => app.openBookmarks()}>Bookmarks</button>
@@ -276,6 +301,27 @@
   .search-btn,
   .companion-btn {
     background: #efe7d6;
+  }
+  .hist {
+    font-size: 0.95rem;
+  }
+  .jump {
+    font: inherit;
+    font-size: 0.85rem;
+    width: 8.5rem;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid #c3b69c;
+    border-radius: 7px;
+    background: #fbf8f0;
+    color: #2b2520;
+  }
+  .jump:focus {
+    outline: 2px solid #c9b892;
+    border-color: transparent;
+  }
+  .jump.bad {
+    border-color: #b03a2e;
+    background: #fbeeec;
   }
   .star {
     font-size: 1rem;

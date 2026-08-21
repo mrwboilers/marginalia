@@ -5,6 +5,7 @@ import { HIGHLIGHT_COLORS, LAYER_COLORS } from './types';
 import { DEFAULT_LAYERS, getProvider, type BibleProvider } from './provider';
 import { loadLexicon, loadStrongsChapter } from './provider/strongs';
 import { companionKeys, companionLabel, keyFor, loadCompanion, readingsFor } from './provider/companion';
+import { parseReference } from './reference';
 import { matchNotes, type NoteHit } from './notesearch';
 import { autoBackup, manualBackup, revealBackups } from './backup';
 import { renderPieces, type RenderPiece } from './marks';
@@ -58,6 +59,12 @@ class AppState {
   bookmarksOpen = $state(false);
   layersOpen = $state(false);
   lightboxSrc = $state<string | null>(null); // a note image opened full-size
+
+  // Navigation history (Back/Forward) and a transient status toast.
+  private navBack = $state<{ bookId: number; chapter: number }[]>([]);
+  private navFwd = $state<{ bookId: number; chapter: number }[]>([]);
+  toast = $state('');
+  private toastTimer: ReturnType<typeof setTimeout> | undefined;
 
   // Bible Companion (Robert Roberts' reading plan).
   companionOpen = $state(false);
@@ -162,8 +169,38 @@ class AppState {
     }
   }
 
-  goTo(bookId: number, chapter: number) {
+  /** Navigate to a chapter. Records the current spot for Back unless `history` is false. */
+  goTo(bookId: number, chapter: number, history = true) {
+    if (history && (bookId !== this.bookId || chapter !== this.chapter)) {
+      this.navBack = [...this.navBack, { bookId: this.bookId, chapter: this.chapter }];
+      this.navFwd = [];
+    }
     void this.loadChapter(bookId, chapter);
+  }
+
+  canBack = $derived(this.navBack.length > 0);
+  canForward = $derived(this.navFwd.length > 0);
+  back() {
+    const prev = this.navBack.at(-1);
+    if (!prev) return;
+    this.navBack = this.navBack.slice(0, -1);
+    this.navFwd = [...this.navFwd, { bookId: this.bookId, chapter: this.chapter }];
+    void this.loadChapter(prev.bookId, prev.chapter);
+  }
+  forward() {
+    const next = this.navFwd.at(-1);
+    if (!next) return;
+    this.navFwd = this.navFwd.slice(0, -1);
+    this.navBack = [...this.navBack, { bookId: this.bookId, chapter: this.chapter }];
+    void this.loadChapter(next.bookId, next.chapter);
+  }
+
+  /** Navigate to a free-typed reference ("Jn 3:16"). Returns false if unrecognized. */
+  jumpToReference(input: string): boolean {
+    const t = parseReference(input);
+    if (!t) return false;
+    this.goTo(t.bookId, t.chapter);
+    return true;
   }
 
   canPrev = $derived(!(this.bookId === 1 && this.chapter === 1));
@@ -266,6 +303,38 @@ class AppState {
   }
   closeImage() {
     this.lightboxSrc = null;
+  }
+
+  showToast(msg: string) {
+    this.toast = msg;
+    clearTimeout(this.toastTimer);
+    this.toastTimer = setTimeout(() => (this.toast = ''), 1600);
+  }
+
+  /** Copy a verse's text with its reference to the clipboard. */
+  async copyVerse(v: number) {
+    const verse = this.verses.find((x) => x.v === v);
+    if (!verse) return;
+    const ref = `${this.book?.name ?? ''} ${this.chapter}:${v}`.trim();
+    const text = `“${verse.text}” — ${ref}`;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Fallback for webviews where the async clipboard API is unavailable.
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+      } catch {
+        /* ignore */
+      }
+      document.body.removeChild(ta);
+    }
+    this.showToast(`Copied ${ref}`);
   }
 
   noteFor(v: number): Note | undefined {

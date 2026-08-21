@@ -48,6 +48,9 @@
   {#if app.lightboxSrc}
     <ImageLightbox />
   {/if}
+  {#if app.toast}
+    <div class="toast" role="status">{app.toast}</div>
+  {/if}
 {/if}
 
 <style>
@@ -56,6 +59,21 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+  }
+  .toast {
+    position: fixed;
+    bottom: 1.75rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(43, 37, 32, 0.92);
+    color: #f4efe2;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-size: 0.85rem;
+    padding: 0.5rem 0.95rem;
+    border-radius: 999px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    z-index: 120;
+    pointer-events: none;
   }
   .body {
     flex: 1;

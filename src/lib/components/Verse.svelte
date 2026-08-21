@@ -32,7 +32,14 @@
   >
 {/snippet}
 
-<sup class="vnum">{verse.v}</sup><span
+<sup
+  class="vnum"
+  role="button"
+  tabindex="0"
+  title="Copy verse with reference"
+  onclick={() => app.copyVerse(verse.v)}
+  onkeydown={(e) => e.key === 'Enter' && app.copyVerse(verse.v)}
+>{verse.v}</sup><span
   class="vtext"
   class:red={isRed}
   class:strong-mode={strongMode}
@@ -53,6 +60,14 @@
     line-height: 0;
     margin-right: 0.12em;
     user-select: none;
+    cursor: pointer;
+    border: none;
+    background: none;
+    padding: 0;
+  }
+  .vnum:hover {
+    color: #7a5230;
+    text-decoration: underline;
   }
   .vtext.red {
     color: #b03a2e;
