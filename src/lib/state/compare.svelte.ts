@@ -1,5 +1,6 @@
 import type { BibleProvider } from '../provider';
 import type { Translation, Verse } from '../types';
+import { orderSelected } from './compare-order';
 
 interface CompareDeps {
   provider: () => BibleProvider | null;
@@ -35,6 +36,8 @@ export class CompareState {
   selectedIds = $state<number[]>([]);
   columns = $state<CompareColumn[]>([]);
   loading = $state(false);
+  /** Monotonic id so a slow reload can't overwrite a newer one's results. */
+  private loadSeq = 0;
 
   constructor(deps: CompareDeps) {
     this.deps = deps;
@@ -61,14 +64,13 @@ export class CompareState {
     this.bookId = bookId;
     this.chapter = chapter;
     this.focusVerse = focusVerse;
+    const canonical = this.deps.translations().map((t) => t.id);
     const current = this.deps.currentTranslationId();
-    if (this.selectedIds.length === 0) {
-      // Current translation first, then the rest, so the reader's version leads.
-      const others = this.deps.translations().map((t) => t.id).filter((id) => id !== current);
-      this.selectedIds = [current, ...others];
-    } else if (!this.selectedIds.includes(current)) {
-      this.selectedIds = [current, ...this.selectedIds];
-    }
+    // First open compares every translation; later opens keep the prior selection
+    // but always ensure the current reading translation is present and leads.
+    const base = this.selectedIds.length ? this.selectedIds : canonical;
+    const ids = base.includes(current) ? base : [...base, current];
+    this.selectedIds = orderSelected(ids, current, canonical);
     this.open = true;
     await this.reload();
   }
@@ -78,14 +80,15 @@ export class CompareState {
   }
 
   async toggleTranslation(id: number) {
+    let ids: number[];
     if (this.selectedIds.includes(id)) {
       if (this.selectedIds.length <= 1) return; // keep at least one column
-      this.selectedIds = this.selectedIds.filter((x) => x !== id);
+      ids = this.selectedIds.filter((x) => x !== id);
     } else {
-      // Preserve canonical translation order when re-adding.
-      const order = this.deps.translations().map((t) => t.id);
-      this.selectedIds = [...this.selectedIds, id].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+      ids = [...this.selectedIds, id];
     }
+    // Keep the current reading translation first, the rest in canonical order.
+    this.selectedIds = orderSelected(ids, this.deps.currentTranslationId(), this.deps.translations().map((t) => t.id));
     await this.reload();
   }
 
@@ -101,6 +104,7 @@ export class CompareState {
   private async reload() {
     const provider = this.deps.provider();
     if (!provider) return;
+    const seq = ++this.loadSeq;
     this.loading = true;
     try {
       const byId = new Map(this.deps.translations().map((t) => [t.id, t]));
@@ -112,9 +116,11 @@ export class CompareState {
           return { translation, verses };
         })
       );
+      // Drop results if a newer reload has started while we were awaiting.
+      if (seq !== this.loadSeq) return;
       this.columns = cols.filter((c): c is CompareColumn => c !== null);
     } finally {
-      this.loading = false;
+      if (seq === this.loadSeq) this.loading = false;
     }
   }
 }
