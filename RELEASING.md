@@ -46,18 +46,34 @@ One-time setup. You need an **Apple Developer Program** membership (paid).
 ### 1. Create a "Developer ID Application" certificate
 
 This is the certificate type for distributing an app **outside** the Mac App
-Store. (Not "Apple Development" or "Mac App Distribution".)
+Store. (Not "Apple Development" or "Mac App Distribution".) **No Xcode required** —
+Keychain Access (built into macOS) plus the developer website is enough.
 
-Easiest, via Xcode:
-- **Xcode → Settings → Accounts →** select your team **→ Manage Certificates… →
-  +  → Developer ID Application**.
+**a. Make a certificate request (Keychain Access).**
+- Open **Keychain Access** (Applications → Utilities, or Spotlight).
+- Menu: **Keychain Access → Certificate Assistant → Request a Certificate From a
+  Certificate Authority…**
+- **User Email Address:** your Apple ID email. **Common Name:** your name.
+  Leave **CA Email Address** blank.
+- Choose **Saved to disk** → **Continue**, and save
+  `CertificateSigningRequest.certSigningRequest`.
+  (This also creates the matching private key in your login keychain — keep it.)
 
-Or, via the website:
-- In **Keychain Access → Certificate Assistant → Request a Certificate From a
-  Certificate Authority** to make a CSR (save to disk).
-- At <https://developer.apple.com/account/resources/certificates> → **+** →
-  **Developer ID Application** → upload the CSR → download the `.cer` and
-  double-click to add it to your login keychain.
+**b. Create the certificate (website).**
+- Go to <https://developer.apple.com/account/resources/certificates/list> → **+**.
+- Under **Software**, pick **Developer ID Application** → **Continue**.
+  (Only the membership's **Account Holder** can create this — for an individual
+  enrollment that's you.)
+- Upload the `.certSigningRequest` from step a → **Continue** → **Download** the
+  `developerID_application.cer`.
+
+**c. Install it.**
+- Double-click the downloaded `.cer`. It lands in your **login** keychain and
+  pairs with the private key from step a.
+
+> Xcode alternative (if you happen to have it): **Xcode → Settings → Accounts →**
+> your team **→ Manage Certificates… → + → Developer ID Application** does all of
+> the above in one click. It is not required.
 
 ### 2. Export the certificate as a `.p12`
 
