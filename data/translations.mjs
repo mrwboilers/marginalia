@@ -56,9 +56,53 @@ export const TRANSLATIONS = [
       entry: 'eng-web_vpl.txt',
     },
   },
+  {
+    id: 3,
+    abbrev: 'BSB',
+    name: 'Berean Standard Bible',
+    language: 'en',
+    publicDomain: true,
+    licenseName: 'Public Domain',
+    licenseUrl: 'https://berean.bible/terms.htm',
+    copyright: '',
+    attribution:
+      'Berean Standard Bible — Berean Bible Translation Committee / Bible Hub, via eBible.org; dedicated to the public domain.',
+    sourceUrl: 'https://ebible.org/engbsb/',
+    textVersion: 'engbsb2020eb (eBible.org, BSB 3rd Printing; 2026-08-08)',
+    hasStrongs: false, // Strong's numbering is reconciled to the KJV wording only.
+    isLocal: true,
+    source: {
+      // Authoritative Berean Bible text (Berean Bible Translation Committee),
+      // machine-readable verse-per-line distribution via eBible.org `engbsb`.
+      format: 'ebible-vpl',
+      url: 'https://ebible.org/Scriptures/engbsb_vpl.zip',
+      entry: 'engbsb_vpl.txt',
+    },
+  },
+  {
+    id: 4,
+    abbrev: 'YLT',
+    name: "Young's Literal Translation",
+    language: 'en',
+    publicDomain: true,
+    licenseName: 'Public Domain',
+    licenseUrl: '',
+    copyright: '',
+    attribution:
+      "Young's Literal Translation (1898, Robert Young), via eBible.org — public domain.",
+    sourceUrl: 'https://ebible.org/engylt/',
+    textVersion: 'engylt1898eb (eBible.org; Robert Young, 1898 Third Edition)',
+    hasStrongs: false,
+    isLocal: true,
+    source: {
+      // Robert Young's Literal Translation, 1898 Third/final revised edition,
+      // machine-readable verse-per-line distribution via eBible.org `engylt`.
+      format: 'ebible-vpl',
+      url: 'https://ebible.org/Scriptures/engylt_vpl.zip',
+      entry: 'engylt_vpl.txt',
+    },
+  },
   // Future (not yet bundled — do not uncomment until the text is imported):
-  //   BSB (Berean Standard Bible) — public domain
-  //   YLT (Young's Literal Translation) — public domain
   //   ASV (American Standard Version) — public domain
   //   NEV (New European Version) — COPYRIGHTED; requires permission from Duncan Heaster
 ];

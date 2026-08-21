@@ -6,7 +6,8 @@ use tauri::{AppHandle, Manager};
 /// How many bundled translations the current app ships (see data/build-db.mjs,
 /// which stamps the same number into the DB's `settings.content_version`). Bump
 /// this in lockstep whenever a translation is added to the bundle.
-const CONTENT_VERSION: i64 = 2;
+/// 1 = KJV, 2 = +WEB, 4 = +BSB +YLT.
+const CONTENT_VERSION: i64 = 4;
 
 fn backups_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app

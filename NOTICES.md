@@ -11,6 +11,12 @@ separately (see LICENSE).
   public domain by the copyright holder, Michael Paul Johnson / eBible.org). The
   Classic edition uses "Yahweh" for the divine name in the Old Testament.
   Source: [eBible.org `eng-web`](https://ebible.org/eng-web/) verse-per-line distribution.
+- **Berean Standard Bible (BSB)** — Public Domain (dedicated to the public domain
+  by the Berean Bible Translation Committee / Bible Hub). BSB 3rd Printing.
+  Source: [eBible.org `engbsb`](https://ebible.org/engbsb/) verse-per-line distribution.
+- **Young's Literal Translation (YLT)** — Public Domain (Robert Young, 1898 Third
+  Edition / final revision).
+  Source: [eBible.org `engylt`](https://ebible.org/engylt/) verse-per-line distribution.
 
 ## Cross-references
 
