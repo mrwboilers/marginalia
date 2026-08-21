@@ -70,8 +70,11 @@ jobs:
           releaseDraft: false
           prerelease: false
 
-      # Unsigned path: Windows always, and macOS when no signing secret is present.
+      # Unsigned path: Windows always, and macOS only if no signing secret is set.
       # No APPLE_* env is attached here, so the bundler never attempts to sign.
+      # In production (signing enabled) this runs for Windows only; its release body
+      # matches the signed-macOS step above so the notes are identical regardless of
+      # which job writes the release first (macOS signed, Windows unsigned).
       - name: Build and publish (unsigned)
         if: matrix.platform == 'windows-latest' || (matrix.platform == 'macos-latest' && steps.mac_sign.outputs.enabled != 'true')
         uses: tauri-apps/tauri-action@v0
@@ -84,9 +87,7 @@ jobs:
           releaseBody: |
             Desktop builds for macOS (universal — Apple Silicon + Intel) and Windows (x64).
 
-            These builds aren't code-signed yet, so each OS shows a one-time first-launch prompt — the [README](https://github.com/mrwboilers/marginalia#readme) has the one-step fix:
-
-            - **macOS** — run `xattr -dr com.apple.quarantine /Applications/Marginalia.app` (or System Settings → Privacy & Security → **Open Anyway**).
-            - **Windows** — SmartScreen → **More info → Run anyway**.
+            - **macOS** — signed with a Developer ID certificate and notarized by Apple; it should open normally.
+            - **Windows** — not yet code-signed, so SmartScreen may warn on first run: click **More info → Run anyway**. Signing is planned.
           releaseDraft: false
           prerelease: false
