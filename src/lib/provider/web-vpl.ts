@@ -60,7 +60,7 @@ async function unzipEntry(buf: ArrayBuffer, name: string): Promise<string> {
  */
 export async function fetchEbibleVpl(url: string, entry: string): Promise<Map<number, NormBook>> {
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Failed to load WEB (${res.status}) from ${url}`);
+  if (!res.ok) throw new Error(`Failed to load eBible VPL (${res.status}) from ${url}`);
   const text = await unzipEntry(await res.arrayBuffer(), entry);
 
   const byBook = new Map<number, Map<number, { verse: number; text: string }[]>>();
