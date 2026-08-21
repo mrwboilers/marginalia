@@ -9,6 +9,7 @@ import { autoBackup, manualBackup, revealBackups } from './backup';
 import { marksForVerse, normalizeImportedMarks, renderPieces, type RenderPiece } from './marks';
 import { CompanionState } from './state/companion.svelte';
 import { SearchState } from './state/search.svelte';
+import { CompareState } from './state/compare.svelte';
 import { parseRef } from './books';
 
 export type { RenderPiece } from './marks';
@@ -68,6 +69,13 @@ class AppState {
     books: () => this.books,
     translationId: () => this.translationId,
     navigate: (bookId, chapter) => this.goTo(bookId, chapter),
+  });
+  compare = new CompareState({
+    provider: () => this.provider,
+    translations: () => this.translations,
+    currentTranslationId: () => this.translationId,
+    bookName: (bookId) => this.books.find((b) => b.id === bookId)?.name ?? '',
+    neighbor: (bookId, chapter, delta) => this.neighborChapter(bookId, chapter, delta),
   });
 
   private noteTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -200,6 +208,19 @@ class AppState {
   canNext = $derived(
     !(this.bookId === this.books.length && this.chapter === (this.book?.chapters ?? 1))
   );
+
+  /** The chapter `delta` (±1) steps away, crossing book boundaries; null at the ends. */
+  neighborChapter(bookId: number, chapter: number, delta: number): { bookId: number; chapter: number } | null {
+    if (delta < 0) {
+      if (chapter > 1) return { bookId, chapter: chapter - 1 };
+      const prev = this.books.find((b) => b.id === bookId - 1);
+      return prev ? { bookId: prev.id, chapter: prev.chapters } : null;
+    }
+    const book = this.books.find((b) => b.id === bookId);
+    if (book && chapter < book.chapters) return { bookId, chapter: chapter + 1 };
+    const next = this.books.find((b) => b.id === bookId + 1);
+    return next ? { bookId: next.id, chapter: 1 } : null;
+  }
 
   prevChapter() {
     if (this.chapter > 1) return this.goTo(this.bookId, this.chapter - 1);

@@ -7,6 +7,7 @@
   import CompanionPanel from '$lib/components/CompanionPanel.svelte';
   import BookmarksPanel from '$lib/components/BookmarksPanel.svelte';
   import LayersPanel from '$lib/components/LayersPanel.svelte';
+  import CompareView from '$lib/components/CompareView.svelte';
   import ImageLightbox from '$lib/components/ImageLightbox.svelte';
 
   let error = $state('');
@@ -44,6 +45,9 @@
   {/if}
   {#if app.layersOpen}
     <LayersPanel />
+  {/if}
+  {#if app.compare.open}
+    <CompareView />
   {/if}
   {#if app.lightboxSrc}
     <ImageLightbox />

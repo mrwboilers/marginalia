@@ -127,6 +127,9 @@
       />
       <button class="btn search-btn" onclick={() => app.search.openPanel()}>Search</button>
       <button class="btn companion-btn" onclick={() => app.companion.openPanel()}>Companion</button>
+      {#if app.translations.length > 1}
+        <button class="btn" onclick={() => app.compare.openAt(app.bookId, app.chapter)}>Compare</button>
+      {/if}
       <button class="btn" onclick={() => app.openBookmarks()}>Bookmarks</button>
     </div>
   </div>
