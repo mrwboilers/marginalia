@@ -55,10 +55,14 @@ jobs:
           args: ${{ matrix.args }}
           tagName: ${{ github.ref_name }}
           releaseName: Marginalia ${{ github.ref_name }}
+          # NOTE: once the macOS signing secrets are configured (see RELEASING.md),
+          # the macOS build is notarized and opens normally — update this to say so.
           releaseBody: |
             Desktop builds for macOS (universal — Apple Silicon + Intel) and Windows (x64).
 
-            - **macOS** — signed with a Developer ID certificate and notarized by Apple; it should open normally.
-            - **Windows** — not yet code-signed, so SmartScreen may warn on first run: click **More info → Run anyway**. Signing is planned.
+            These builds aren't code-signed yet, so each OS shows a one-time first-launch prompt — the [README](https://github.com/mrwboilers/marginalia#readme) has the one-step fix:
+
+            - **macOS** — run `xattr -dr com.apple.quarantine /Applications/Marginalia.app` (or System Settings → Privacy & Security → **Open Anyway**).
+            - **Windows** — SmartScreen → **More info → Run anyway**.
           releaseDraft: false
           prerelease: false
