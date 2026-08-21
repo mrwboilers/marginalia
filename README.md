@@ -83,3 +83,4 @@ The reading data is bundled (see `data/` for the import scripts and `static/` +
 - [ROADMAP.md](ROADMAP.md) — plan, architecture, and phased feature roadmap.
 - [SHARING.md](SHARING.md) — a friendly walkthrough for people trying the app.
 - [NOTICES.md](NOTICES.md) — third-party data sources and licenses.
+- [RELEASING.md](RELEASING.md) — how releases are built, and the macOS/Windows code-signing setup.

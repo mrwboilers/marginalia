@@ -38,12 +38,27 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS code signing (Developer ID Application). tauri-action imports the
+          # certificate into a temporary keychain and signs the app + dmg. These are
+          # ignored on the Windows runner and, if unset, the macOS build is simply
+          # left unsigned (same as before) — so this stays safe without the secrets.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          # macOS notarization (Apple ID + app-specific password). When present, the
+          # signed app is submitted to Apple and the ticket is stapled to the dmg, so
+          # Gatekeeper opens it without the "unidentified developer" warning.
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           args: ${{ matrix.args }}
           tagName: ${{ github.ref_name }}
           releaseName: Marginalia ${{ github.ref_name }}
           releaseBody: |
-            macOS (universal — Apple Silicon + Intel) and Windows (x64) builds.
-            Both are unsigned; see the README for the one-step first-launch note per OS.
+            Desktop builds for macOS (universal — Apple Silicon + Intel) and Windows (x64).
+
+            - **macOS** — signed with a Developer ID certificate and notarized by Apple; it should open normally.
+            - **Windows** — not yet code-signed, so SmartScreen may warn on first run: click **More info → Run anyway**. Signing is planned.
           releaseDraft: false
           prerelease: false
