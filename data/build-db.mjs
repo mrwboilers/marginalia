@@ -3,7 +3,7 @@
 //   node --experimental-sqlite data/build-db.mjs
 //
 // Fetches every bundled, public-domain translation listed in ./translations.mjs
-// (KJV from aruljohn/Bible-kjv, WEB from getbible.net), and writes the content
+// (KJV from aruljohn/Bible-kjv, WEB Classic from eBible.org), and writes the content
 // tables + an FTS5 search index + the (empty) user-data tables into
 // src-tauri/db/marginalia.db. On first run the app copies this DB into the OS
 // app-data dir and works read-write.
@@ -15,9 +15,10 @@
 
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, rmSync } from 'node:fs';
+import { inflateRawSync } from 'node:zlib';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TRANSLATIONS } from './translations.mjs';
+import { TRANSLATIONS, EBIBLE_BOOK_ID } from './translations.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'src-tauri', 'db', 'marginalia.db');
@@ -68,26 +69,59 @@ async function fetchAruljohn({ base }) {
   return { books, verses };
 }
 
-/** getbible.net v2: one file per book number (1..66), canonical order. */
-async function fetchGetbible({ base }) {
-  const nrs = Array.from({ length: 66 }, (_, i) => i + 1);
-  const fetched = await mapPool(nrs, 6, (nr) => fetchJson(`${base}/${nr}.json`));
-  const books = [];
-  const verses = [];
-  fetched.forEach((data, idx) => {
-    const bookId = idx + 1; // getbible `nr` follows the same canonical order
-    books.push({ bookId, name: data.name, chapterCount: data.chapters.length });
-    for (const ch of data.chapters) {
-      const chapter = Number(ch.chapter);
-      for (const vs of ch.verses) {
-        verses.push({ bookId, chapter, verse: Number(vs.verse), text: vs.text });
-      }
+/** Extract one entry from a ZIP buffer (deflate/stored) — no external deps. */
+function unzipEntry(buf, name) {
+  // Locate the End Of Central Directory record (may have a trailing comment).
+  let eocd = buf.length - 22;
+  while (eocd >= 0 && buf.readUInt32LE(eocd) !== 0x06054b50) eocd--;
+  if (eocd < 0) throw new Error('bad zip: no end-of-central-directory record');
+  const count = buf.readUInt16LE(eocd + 10);
+  let off = buf.readUInt32LE(eocd + 16);
+  for (let i = 0; i < count; i++) {
+    if (buf.readUInt32LE(off) !== 0x02014b50) throw new Error('bad zip: central dir signature');
+    const method = buf.readUInt16LE(off + 10);
+    const csize = buf.readUInt32LE(off + 20);
+    const nlen = buf.readUInt16LE(off + 28);
+    const elen = buf.readUInt16LE(off + 30);
+    const clen = buf.readUInt16LE(off + 32);
+    const lho = buf.readUInt32LE(off + 42);
+    const entryName = buf.toString('utf8', off + 46, off + 46 + nlen);
+    if (entryName === name) {
+      const lnlen = buf.readUInt16LE(lho + 26);
+      const lelen = buf.readUInt16LE(lho + 28);
+      const start = lho + 30 + lnlen + lelen;
+      const comp = buf.subarray(start, start + csize);
+      return method === 0 ? comp : inflateRawSync(comp);
     }
-  });
+    off += 46 + nlen + elen + clen;
+  }
+  throw new Error(`entry not found in zip: ${name}`);
+}
+
+/**
+ * eBible.org verse-per-line distribution (a ZIP whose `entry` is lines of
+ * `BOOKCODE chapter:verse text`). Only the 66 canonical books (per EBIBLE_BOOK_ID)
+ * are kept; Deuterocanon and any unknown codes are skipped.
+ */
+async function fetchEbibleVpl({ url, entry }) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url}`);
+  const text = unzipEntry(Buffer.from(await res.arrayBuffer()), entry).toString('utf8');
+  const verses = [];
+  const seen = new Set();
+  for (const line of text.split(/\r?\n/)) {
+    const m = /^(\S+)\s+(\d+):(\d+)\s+(.*)$/.exec(line);
+    if (!m) continue;
+    const bookId = EBIBLE_BOOK_ID[m[1]];
+    if (!bookId) continue; // skip Deuterocanon / non-canonical codes
+    verses.push({ bookId, chapter: Number(m[2]), verse: Number(m[3]), text: m[4] });
+    seen.add(bookId);
+  }
+  const books = [...seen].sort((a, b) => a - b).map((bookId) => ({ bookId, name: '', chapterCount: 0 }));
   return { books, verses };
 }
 
-const ADAPTERS = { aruljohn: fetchAruljohn, getbible: fetchGetbible };
+const ADAPTERS = { aruljohn: fetchAruljohn, 'ebible-vpl': fetchEbibleVpl };
 
 async function loadTranslation(t) {
   const adapter = ADAPTERS[t.source?.format];

@@ -7,9 +7,10 @@ separately (see LICENSE).
 
 - **King James Version (KJV)** — Public Domain.
   Source: [aruljohn/Bible-kjv](https://github.com/aruljohn/Bible-kjv).
-- **World English Bible (WEB)** — Public Domain (dedicated to the public domain by
-  the copyright holder, Michael Paul Johnson / [eBible.org](https://ebible.org/web/)).
-  Fetched via the [getbible.net v2](https://getbible.net/) distribution of `eng-web`.
+- **World English Bible, Classic Edition (WEB)** — Public Domain (dedicated to the
+  public domain by the copyright holder, Michael Paul Johnson / eBible.org). The
+  Classic edition uses "Yahweh" for the divine name in the Old Testament.
+  Source: [eBible.org `eng-web`](https://ebible.org/eng-web/) verse-per-line distribution.
 
 ## Cross-references
 
