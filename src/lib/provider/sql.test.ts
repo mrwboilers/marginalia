@@ -55,6 +55,17 @@ beforeAll(() => {
   v.run(1002, KJV, 43, 3, 17, 'For God sent not his Son into the world to condemn the world');
   v.run(1003, WEB, 43, 3, 16, 'For God so loved the world, that he gave his one and only Son');
   v.run(1004, WEB, 43, 3, 17, 'For God didn’t send his Son into the world to judge the world');
+
+  // A real versification difference: John 5:4 (the angel troubling the water)
+  // is present in the KJV/TR but omitted from modern critical texts like the WEB.
+  // KJV John 5 has verses 3,4,5; WEB has 3 and 5 with a GAP at 4 (not renumbered).
+  // We defer full per-translation versification, but retrieval must tolerate this.
+  v.run(1005, KJV, 43, 5, 3, 'In these lay a great multitude of impotent folk, of blind, halt, withered');
+  v.run(1006, KJV, 43, 5, 4, 'For an angel went down at a certain season into the pool, and troubled the water');
+  v.run(1007, KJV, 43, 5, 5, 'And a certain man was there, which had an infirmity thirty and eight years');
+  v.run(1008, WEB, 43, 5, 3, 'In these lay a great multitude of those who were sick, blind, lame, or paralyzed');
+  v.run(1009, WEB, 43, 5, 5, 'A certain man was there who had been sick for thirty-eight years');
+
   db.exec(`INSERT INTO verses_fts(rowid, text) SELECT id, text FROM verses`);
 });
 
@@ -142,6 +153,46 @@ describe('compareVerse', () => {
     expect(rows.map((r) => r.abbrev)).toEqual(['KJV', 'WEB']);
     expect(rows[0].text).toContain('begotten');
     expect(rows[1].text).toContain('one and only');
+  });
+});
+
+// A canonical verse may be absent from a particular translation (e.g. John 5:4).
+// Full per-translation versification is deferred, but retrieval must fail safely:
+// a missing verse is simply absent — it must never shift or misalign other verses.
+describe('a verse missing from a translation', () => {
+  it('chapter() returns each translation’s own verse numbers, gaps preserved and not renumbered', () => {
+    // KJV keeps 3,4,5; WEB has a genuine GAP at 4 — it must stay [3,5], not collapse to [3,4].
+    expect(chapter(KJV, 43, 5).map((r) => r.v)).toEqual([3, 4, 5]);
+    expect(chapter(WEB, 43, 5).map((r) => r.v)).toEqual([3, 5]);
+
+    // Each verse still carries its true number, so verse 5 is verse 5 in both texts
+    // even though WEB is missing verse 4 above it (no positional drift).
+    const web = chapter(WEB, 43, 5);
+    expect(web.find((r) => r.v === 5)?.text).toContain('thirty-eight');
+    expect(web.find((r) => r.v === 4)).toBeUndefined();
+  });
+
+  it('compareVerse() returns only the translations that actually have the verse', () => {
+    // Verse 4 exists only in KJV → compare shows just KJV, not an empty/placeholder WEB row.
+    const v4 = compareVerse(43, 5, 4);
+    expect(v4.map((r) => r.abbrev)).toEqual(['KJV']);
+    expect(v4[0].text).toContain('angel');
+
+    // Verse 5 exists in both → both returned, correctly paired by verse number.
+    expect(compareVerse(43, 5, 5).map((r) => r.abbrev)).toEqual(['KJV', 'WEB']);
+  });
+
+  it('search stays anchored to true verse numbers when a translation omits a verse', () => {
+    // A word unique to the KJV-only verse 4 matches in KJV and nowhere in WEB.
+    const kjv = search(KJV, 'angel');
+    expect(kjv).toHaveLength(1);
+    expect(kjv[0].verse).toBe(4);
+    expect(search(WEB, 'angel')).toHaveLength(0);
+
+    // A word in WEB's verse 5 reports verse 5 — not verse 4 — despite the gap above it.
+    const web = search(WEB, 'thirty-eight');
+    expect(web).toHaveLength(1);
+    expect(web[0].verse).toBe(5);
   });
 });
 
