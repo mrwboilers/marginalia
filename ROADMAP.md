@@ -82,7 +82,7 @@ verse's vertical position — mirroring how a real margin is a fixed strip of pa
 ## 4. Content sources (all free / public domain)
 
 - **KJV** — public domain (e.g. `scrollmapper/bible_databases`, `aruljohn/Bible-kjv`, STEPBible). Bundled offline.
-- **World English Bible (WEB)** — public domain, readable modern English; the best "free NIV alternative." From **ebible.org**.
+- **World English Bible (WEB)** — public domain, readable modern English; the best "free NIV alternative." Bundled offline (eBible.org `eng-web` Classic edition).
 - **ASV, YLT, Darby, Geneva, Douay-Rheims** — public domain, also on ebible.org.
 - **Cross-references** — Treasury of Scripture Knowledge (public domain) + OpenBible.info topical data (CC).
 - **Original languages / interlinear / Strong's** — STEPBible (CC BY) and the Berean resources.

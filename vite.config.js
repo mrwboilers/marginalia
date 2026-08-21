@@ -28,5 +28,15 @@ export default defineConfig(async () => ({
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
+    // Dev-only: eBible.org sends no CORS headers, so the browser-dev provider
+    // (HttpProvider) fetches the WEB text through this same-origin proxy. The
+    // packaged app doesn't use this — it reads WEB from the bundled SQLite DB.
+    proxy: {
+      "/ebible": {
+        target: "https://ebible.org",
+        changeOrigin: true,
+        rewrite: (/** @type {string} */ p) => p.replace(/^\/ebible/, ""),
+      },
+    },
   },
 }));

@@ -6,8 +6,9 @@ import { KJV_TRANSLATION_ID } from '../types';
 import { DEFAULT_LAYERS, type AllTranslations, type BibleProvider } from './index';
 import { normalizeImportedMarks } from '../marks';
 import { loadChapterXrefs } from './xrefs';
+import { fetchWebVpl, type NormBook } from './web-vpl';
 
-// Browser-dev serves only KJV; this mirrors the bundled translations registry.
+// Browser-dev mirrors the bundled translations registry (data/translations.mjs).
 const KJV: Translation = {
   id: KJV_TRANSLATION_ID,
   abbrev: 'KJV',
@@ -20,8 +21,26 @@ const KJV: Translation = {
   hasStrongs: true,
   isLocal: true,
 };
+const WEB: Translation = {
+  id: 2,
+  abbrev: 'WEB',
+  name: 'World English Bible',
+  language: 'en',
+  publicDomain: true,
+  licenseName: 'Public Domain',
+  sourceUrl: 'https://ebible.org/eng-web/',
+  textVersion: 'eng-web / engweb2025eb (eBible.org)',
+  hasStrongs: false,
+  isLocal: true,
+};
+const DEV_TRANSLATIONS = [KJV, WEB];
 
 const BASE = 'https://raw.githubusercontent.com/aruljohn/Bible-kjv/master';
+// eBible.org sends no CORS headers, so browser-dev fetches WEB through the Vite
+// proxy configured in vite.config.js (see the `/ebible` entry). One 5 MB zip,
+// fetched + unzipped + cached once. The packaged app uses the bundled DB instead.
+const WEB_VPL_URL = '/ebible/Scriptures/eng-web_vpl.zip';
+const WEB_VPL_ENTRY = 'eng-web_vpl.txt';
 const STORE_KEY = 'marginalia.userdata.v2';
 const PROGRESS_KEY = 'marginalia.companion.v1';
 const SETTINGS_KEY = 'marginalia.settings.v1';
@@ -45,14 +64,16 @@ const BOOKS: [string, number][] = [
   ['Revelation', 22],
 ];
 
-interface RawBook {
+// aruljohn (KJV) uses string chapter/verse; normalize to NormBook (numeric).
+interface AruljohnBook {
   chapters: { chapter: string; verses: { verse: string; text: string }[] }[];
 }
 
-/** Browser-dev provider: KJV over HTTP, markings in localStorage. Online-only (dev). */
+/** Browser-dev provider: content over HTTP, markings in localStorage. Online-only (dev). */
 export class HttpProvider implements BibleProvider {
   private meta: BookMeta[] = [];
-  private bookCache = new Map<number, RawBook>();
+  private kjvCache = new Map<number, NormBook>(); // per-book (aruljohn), keyed by bookId
+  private webAll: Promise<Map<number, NormBook>> | null = null; // whole WEB, loaded once
 
   async init(): Promise<void> {
     this.meta = BOOKS.map(([name, chapters], i) => ({
@@ -68,31 +89,45 @@ export class HttpProvider implements BibleProvider {
   }
 
   async translations(): Promise<Translation[]> {
-    return [KJV];
+    return DEV_TRANSLATIONS;
   }
 
-  private async raw(bookId: number): Promise<RawBook> {
-    const cached = this.bookCache.get(bookId);
+  /** Fetch + normalize one book for a translation (cached). */
+  private async loadBook(translationId: number, bookId: number): Promise<NormBook> {
+    if (translationId === WEB.id) {
+      if (!this.webAll) this.webAll = fetchWebVpl(WEB_VPL_URL, WEB_VPL_ENTRY);
+      return (await this.webAll).get(bookId) ?? { chapters: [] };
+    }
+    const cached = this.kjvCache.get(bookId);
     if (cached) return cached;
     const name = this.meta[bookId - 1].name.replace(/\s+/g, '');
     const res = await fetch(`${BASE}/${name}.json`);
     if (!res.ok) throw new Error(`Failed to load ${name}: ${res.status}`);
-    const data = (await res.json()) as RawBook;
-    this.bookCache.set(bookId, data);
-    return data;
+    const data = (await res.json()) as AruljohnBook;
+    const norm: NormBook = {
+      chapters: data.chapters.map((c) => ({
+        chapter: Number(c.chapter),
+        verses: c.verses.map((v) => ({ verse: Number(v.verse), text: v.text })),
+      })),
+    };
+    this.kjvCache.set(bookId, norm);
+    return norm;
   }
 
-  // Browser-dev only ever has KJV, so translationId is accepted but not used.
-  async chapter(_translationId: number, bookId: number, chapter: number): Promise<Verse[]> {
-    const data = await this.raw(bookId);
-    const ch = data.chapters.find((c) => Number(c.chapter) === chapter);
-    return (ch?.verses ?? []).map((v) => ({ v: Number(v.verse), text: v.text }));
+  async chapter(translationId: number, bookId: number, chapter: number): Promise<Verse[]> {
+    const data = await this.loadBook(translationId, bookId);
+    const ch = data.chapters.find((c) => c.chapter === chapter);
+    return (ch?.verses ?? []).map((v) => ({ v: v.verse, text: v.text }));
   }
 
   async compareVerse(bookId: number, chapter: number, verse: number): Promise<VerseInTranslation[]> {
-    const verses = await this.chapter(KJV_TRANSLATION_ID, bookId, chapter);
-    const v = verses.find((x) => x.v === verse);
-    return v ? [{ translationId: KJV.id, abbrev: KJV.abbrev, text: v.text }] : [];
+    const out: VerseInTranslation[] = [];
+    for (const t of DEV_TRANSLATIONS) {
+      const verses = await this.chapter(t.id, bookId, chapter).catch(() => []);
+      const v = verses.find((x) => x.v === verse);
+      if (v) out.push({ translationId: t.id, abbrev: t.abbrev, text: v.text });
+    }
+    return out;
   }
 
   async xrefs(bookId: number, chapter: number): Promise<Xref[]> {
@@ -100,29 +135,36 @@ export class HttpProvider implements BibleProvider {
   }
 
   async search(
-    _translationId: number | AllTranslations,
+    translationId: number | AllTranslations,
     query: string,
     limit = 100
   ): Promise<SearchHit[]> {
     const q = query.trim().toLowerCase();
     if (!q) return [];
     const terms = q.split(/\s+/);
-    // Dev-only: fetch all books (cached) and scan.
-    await Promise.all(this.meta.map((b) => this.raw(b.id).catch(() => null)));
+    const targets =
+      translationId === 'all'
+        ? DEV_TRANSLATIONS
+        : DEV_TRANSLATIONS.filter((t) => t.id === translationId);
     const hits: SearchHit[] = [];
-    for (const b of this.meta) {
-      const data = this.bookCache.get(b.id);
-      if (!data) continue;
-      for (const ch of data.chapters) {
-        for (const vs of ch.verses) {
-          const lower = vs.text.toLowerCase();
-          if (terms.every((t) => lower.includes(t))) {
-            hits.push({
-              translationId: KJV.id, translationAbbrev: KJV.abbrev,
-              bookId: b.id, bookName: b.name,
-              chapter: Number(ch.chapter), verse: Number(vs.verse), text: vs.text,
-            });
-            if (hits.length >= limit) return hits;
+    // Dev-only: scan every book of each target translation (books are cached).
+    for (const t of targets) {
+      const books = await Promise.all(
+        this.meta.map((b) => this.loadBook(t.id, b.id).then((data) => ({ b, data })).catch(() => null))
+      );
+      for (const entry of books) {
+        if (!entry) continue;
+        const { b, data } = entry;
+        for (const ch of data.chapters) {
+          for (const vs of ch.verses) {
+            if (terms.every((term) => vs.text.toLowerCase().includes(term))) {
+              hits.push({
+                translationId: t.id, translationAbbrev: t.abbrev,
+                bookId: b.id, bookName: b.name,
+                chapter: ch.chapter, verse: vs.verse, text: vs.text,
+              });
+              if (hits.length >= limit) return hits;
+            }
           }
         }
       }
