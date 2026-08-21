@@ -14,21 +14,19 @@ or write leaves your machine.
 
 Grab the latest build from the
 [**Releases**](https://github.com/mrwboilers/marginalia/releases/latest) page. The
-app isn't code-signed yet, so each OS shows a one-time "unknown developer" warning —
-the steps below clear it.
+macOS build is signed and notarized, so it just opens; the Windows installer isn't
+code-signed yet, so it needs one extra click (below).
 
 ### macOS
 
 1. Download **`Marginalia_<version>_universal.dmg`** (a *universal* binary — runs
    natively on both Apple Silicon and Intel Macs).
 2. Open the `.dmg` and drag **Marginalia** into your **Applications** folder.
-3. macOS blocks the unsigned first launch with a *"Marginalia is damaged / can't be
-   opened"* warning. Clear it with one command in **Terminal**:
-   ```bash
-   xattr -dr com.apple.quarantine /Applications/Marginalia.app
-   ```
-   Then open Marginalia normally. *(Alternative: try to open it once, then go to
-   **System Settings → Privacy & Security** and click **Open Anyway**.)*
+3. Open **Marginalia** normally. On the first launch macOS shows a routine
+   *"Marginalia is an app downloaded from the Internet — are you sure you want to
+   open it?"* prompt; click **Open**. (This is the standard prompt for any
+   downloaded app; the build is notarized, so there's no "unidentified developer"
+   block and no Terminal step.)
 
 ### Windows (x64)
 
