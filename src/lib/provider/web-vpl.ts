@@ -54,11 +54,11 @@ async function unzipEntry(buf: ArrayBuffer, name: string): Promise<string> {
 }
 
 /**
- * Fetch + parse the eBible VPL zip into `bookId → NormBook`. Empty placeholder
- * verses (omitted textual variants, e.g. Acts 8:37) and Deuterocanon are dropped,
- * matching the bundled build exactly.
+ * Fetch + parse an eBible VPL zip (WEB/BSB/YLT) into `bookId → NormBook`. Empty
+ * placeholder verses (omitted textual variants, e.g. Acts 8:37) and Deuterocanon
+ * are dropped, matching the bundled build exactly.
  */
-export async function fetchWebVpl(url: string, entry: string): Promise<Map<number, NormBook>> {
+export async function fetchEbibleVpl(url: string, entry: string): Promise<Map<number, NormBook>> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to load WEB (${res.status}) from ${url}`);
   const text = await unzipEntry(await res.arrayBuffer(), entry);

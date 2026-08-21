@@ -6,7 +6,7 @@ import { KJV_TRANSLATION_ID } from '../types';
 import { DEFAULT_LAYERS, type AllTranslations, type BibleProvider } from './index';
 import { normalizeImportedMarks } from '../marks';
 import { loadChapterXrefs } from './xrefs';
-import { fetchWebVpl, type NormBook } from './web-vpl';
+import { fetchEbibleVpl, type NormBook } from './web-vpl';
 
 // Browser-dev mirrors the bundled translations registry (data/translations.mjs).
 const KJV: Translation = {
@@ -33,14 +33,41 @@ const WEB: Translation = {
   hasStrongs: false,
   isLocal: true,
 };
-const DEV_TRANSLATIONS = [KJV, WEB];
+const BSB: Translation = {
+  id: 3,
+  abbrev: 'BSB',
+  name: 'Berean Standard Bible',
+  language: 'en',
+  publicDomain: true,
+  licenseName: 'Public Domain',
+  sourceUrl: 'https://ebible.org/engbsb/',
+  textVersion: 'engbsb2020eb (eBible.org, BSB 3rd Printing; 2026-08-08)',
+  hasStrongs: false,
+  isLocal: true,
+};
+const YLT: Translation = {
+  id: 4,
+  abbrev: 'YLT',
+  name: "Young's Literal Translation",
+  language: 'en',
+  publicDomain: true,
+  licenseName: 'Public Domain',
+  sourceUrl: 'https://ebible.org/engylt/',
+  textVersion: 'engylt1898eb (eBible.org; Robert Young, 1898 Third Edition)',
+  hasStrongs: false,
+  isLocal: true,
+};
+const DEV_TRANSLATIONS = [KJV, WEB, BSB, YLT];
 
 const BASE = 'https://raw.githubusercontent.com/aruljohn/Bible-kjv/master';
-// eBible.org sends no CORS headers, so browser-dev fetches WEB through the Vite
-// proxy configured in vite.config.js (see the `/ebible` entry). One 5 MB zip,
+// eBible.org sends no CORS headers, so browser-dev fetches these through the Vite
+// proxy configured in vite.config.js (see the `/ebible` entry). Each is one zip,
 // fetched + unzipped + cached once. The packaged app uses the bundled DB instead.
-const WEB_VPL_URL = '/ebible/Scriptures/eng-web_vpl.zip';
-const WEB_VPL_ENTRY = 'eng-web_vpl.txt';
+const VPL_SOURCES: Record<number, { url: string; entry: string }> = {
+  [WEB.id]: { url: '/ebible/Scriptures/eng-web_vpl.zip', entry: 'eng-web_vpl.txt' },
+  [BSB.id]: { url: '/ebible/Scriptures/engbsb_vpl.zip', entry: 'engbsb_vpl.txt' },
+  [YLT.id]: { url: '/ebible/Scriptures/engylt_vpl.zip', entry: 'engylt_vpl.txt' },
+};
 const STORE_KEY = 'marginalia.userdata.v2';
 const PROGRESS_KEY = 'marginalia.companion.v1';
 const SETTINGS_KEY = 'marginalia.settings.v1';
@@ -73,7 +100,8 @@ interface AruljohnBook {
 export class HttpProvider implements BibleProvider {
   private meta: BookMeta[] = [];
   private kjvCache = new Map<number, NormBook>(); // per-book (aruljohn), keyed by bookId
-  private webAll: Promise<Map<number, NormBook>> | null = null; // whole WEB, loaded once
+  // Whole-Bible VPL translations (WEB/BSB/YLT), each fetched + parsed once.
+  private vplCache = new Map<number, Promise<Map<number, NormBook>>>();
 
   async init(): Promise<void> {
     this.meta = BOOKS.map(([name, chapters], i) => ({
@@ -94,9 +122,11 @@ export class HttpProvider implements BibleProvider {
 
   /** Fetch + normalize one book for a translation (cached). */
   private async loadBook(translationId: number, bookId: number): Promise<NormBook> {
-    if (translationId === WEB.id) {
-      if (!this.webAll) this.webAll = fetchWebVpl(WEB_VPL_URL, WEB_VPL_ENTRY);
-      return (await this.webAll).get(bookId) ?? { chapters: [] };
+    const vpl = VPL_SOURCES[translationId];
+    if (vpl) {
+      let all = this.vplCache.get(translationId);
+      if (!all) this.vplCache.set(translationId, (all = fetchEbibleVpl(vpl.url, vpl.entry)));
+      return (await all).get(bookId) ?? { chapters: [] };
     }
     const cached = this.kjvCache.get(bookId);
     if (cached) return cached;
