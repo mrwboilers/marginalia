@@ -34,20 +34,27 @@ jobs:
         with:
           targets: ${{ matrix.rust-targets }}
       - run: npm ci
-      - name: Build and publish release
+
+      # Whether the macOS signing secrets are configured. We must NOT pass empty
+      # APPLE_* env vars to the build: the Tauri bundler treats a present-but-empty
+      # APPLE_CERTIFICATE as "sign me" and then fails importing an empty cert. So we
+      # branch on this and only attach the signing env when a certificate exists.
+      - name: Detect macOS signing availability
+        if: matrix.platform == 'macos-latest'
+        id: mac_sign
+        shell: bash
+        run: echo "enabled=${{ secrets.APPLE_CERTIFICATE != '' }}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and publish (macOS — signed + notarized)
+        if: matrix.platform == 'macos-latest' && steps.mac_sign.outputs.enabled == 'true'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # macOS code signing (Developer ID Application). tauri-action imports the
-          # certificate into a temporary keychain and signs the app + dmg. These are
-          # ignored on the Windows runner and, if unset, the macOS build is simply
-          # left unsigned (same as before) — so this stays safe without the secrets.
+          # Developer ID Application signing.
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          # macOS notarization (Apple ID + app-specific password). When present, the
-          # signed app is submitted to Apple and the ticket is stapled to the dmg, so
-          # Gatekeeper opens it without the "unidentified developer" warning.
+          # Notarization (Apple ID + app-specific password).
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -55,8 +62,25 @@ jobs:
           args: ${{ matrix.args }}
           tagName: ${{ github.ref_name }}
           releaseName: Marginalia ${{ github.ref_name }}
-          # NOTE: once the macOS signing secrets are configured (see RELEASING.md),
-          # the macOS build is notarized and opens normally — update this to say so.
+          releaseBody: |
+            Desktop builds for macOS (universal — Apple Silicon + Intel) and Windows (x64).
+
+            - **macOS** — signed with a Developer ID certificate and notarized by Apple; it should open normally.
+            - **Windows** — not yet code-signed, so SmartScreen may warn on first run: click **More info → Run anyway**. Signing is planned.
+          releaseDraft: false
+          prerelease: false
+
+      # Unsigned path: Windows always, and macOS when no signing secret is present.
+      # No APPLE_* env is attached here, so the bundler never attempts to sign.
+      - name: Build and publish (unsigned)
+        if: matrix.platform == 'windows-latest' || (matrix.platform == 'macos-latest' && steps.mac_sign.outputs.enabled != 'true')
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: ${{ matrix.args }}
+          tagName: ${{ github.ref_name }}
+          releaseName: Marginalia ${{ github.ref_name }}
           releaseBody: |
             Desktop builds for macOS (universal — Apple Silicon + Intel) and Windows (x64).
 
