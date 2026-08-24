@@ -44,7 +44,7 @@
   class:red={isRed}
   class:strong-mode={strongMode}
   data-v={verse.v}
-  >{#if strongMode}{#each strongItems as item}{#if 'strongs' in item}{#each item.strongs as n (n)}<StrongNum
+  >{#if strongMode}{#each strongItems as item}{#if 'strongs' in item}{#each item.strongs as n, i (i)}<StrongNum
             num={n}
           />{/each}{:else}{@render pieceView(item)}{/if}{/each}{:else}{#each pieces as piece}{@render pieceView(
         piece
