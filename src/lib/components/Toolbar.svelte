@@ -216,84 +216,84 @@
   .toolbar {
     background: #e6ddcb;
     border-bottom: 1px solid #cbbfa8;
-    padding: 0.85rem 1.5rem 0.95rem;
+    padding: 0.4rem 1rem 0.45rem;
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
+    gap: 0.3rem;
     font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   }
   .row {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
     flex-wrap: wrap;
   }
   .brand-row {
-    gap: 1.75rem;
-    margin-bottom: 0.15rem;
+    gap: 1rem;
+    margin-bottom: 0;
   }
   .brand-name {
     font-family: 'Iowan Old Style', Palatino, Georgia, serif;
-    font-size: 1.5rem;
+    font-size: 1.1rem;
     color: #2b2520;
-    line-height: 1.1;
+    line-height: 1.05;
   }
   .brand-sub {
-    font-size: 0.66rem;
-    letter-spacing: 0.18em;
+    font-size: 0.6rem;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
     color: #8a7c66;
   }
   .pickers {
     display: flex;
-    gap: 0.6rem;
+    gap: 0.4rem;
     align-items: center;
     flex-wrap: wrap;
   }
   .nav {
     display: flex;
-    gap: 0.3rem;
+    gap: 0.25rem;
     align-items: center;
   }
   select {
     font: inherit;
-    font-size: 0.9rem;
-    padding: 0.45rem 0.6rem;
+    font-size: 0.82rem;
+    padding: 0.28rem 0.45rem;
     border: 1px solid #c3b69c;
-    border-radius: 7px;
+    border-radius: 6px;
     background: #fbf8f0;
     color: #2b2520;
   }
   select[aria-label='Translation'] {
-    min-width: 150px;
+    min-width: 130px;
   }
   select[aria-label='Book'] {
-    min-width: 140px;
+    min-width: 128px;
   }
   select:disabled {
     opacity: 0.75;
   }
 
   .row-label {
-    width: 3.6rem;
-    font-size: 0.66rem;
-    letter-spacing: 0.14em;
+    width: 3.2rem;
+    font-size: 0.6rem;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
     color: #8a7c66;
   }
   .group {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
-    padding-right: 0.35rem;
+    gap: 0.3rem;
+    padding-right: 0.25rem;
   }
 
   .btn {
     font: inherit;
-    font-size: 0.85rem;
-    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    padding: 0.26rem 0.55rem;
     border: 1px solid #c3b69c;
-    border-radius: 7px;
+    border-radius: 6px;
     background: #fbf8f0;
     color: #2b2520;
     cursor: pointer;
@@ -307,8 +307,8 @@
     cursor: default;
   }
   .nav-arrow {
-    padding: 0.4rem 0.6rem;
-    font-size: 1rem;
+    padding: 0.26rem 0.45rem;
+    font-size: 0.95rem;
     line-height: 1;
   }
   .search-btn,
@@ -316,15 +316,15 @@
     background: #efe7d6;
   }
   .hist {
-    font-size: 0.95rem;
+    font-size: 0.9rem;
   }
   .jump {
     font: inherit;
-    font-size: 0.85rem;
-    width: 8.5rem;
-    padding: 0.4rem 0.6rem;
+    font-size: 0.8rem;
+    width: 7.5rem;
+    padding: 0.26rem 0.5rem;
     border: 1px solid #c3b69c;
-    border-radius: 7px;
+    border-radius: 6px;
     background: #fbf8f0;
     color: #2b2520;
   }
