@@ -58,4 +58,25 @@ describe('reconcile — plainOf always equals the authoritative text', () => {
     expect(plainOf(fixed)).toBe(db);
     expect(fixed.some((s: any) => s.s?.includes('H430'))).toBe(true);
   });
+
+  it('keeps numbers on whole words despite a stray source glyph (1 Cor 6:2 “➔”)', () => {
+    // The source has a stray "➔" the DB text lacks; a character-offset walk would
+    // drift and land later numbers mid-word. Word alignment must keep each number
+    // right after its word.
+    const segs = tokenize('Do ye[G1492] ➔ not[G3756] know[G1492] that[G3754]');
+    const db = 'Do ye not know that';
+    const fixed = reconcile(segs, db);
+    expect(plainOf(fixed)).toBe(db);
+    // A number renders right after its segment's text, so the char at that
+    // cumulative offset must be a space or end-of-verse — never mid-word.
+    let off = 0;
+    for (const seg of fixed as any[]) {
+      off += seg.t.length;
+      if (!seg.s) continue;
+      const nextChar = db[off];
+      expect(nextChar === undefined || /\s/.test(nextChar)).toBe(true);
+    }
+    expect((fixed as any[]).find((s) => s.s?.includes('G3756'))?.t.endsWith('not')).toBe(true);
+    expect((fixed as any[]).find((s) => s.s?.includes('G3754'))?.t.endsWith('that')).toBe(true);
+  });
 });
