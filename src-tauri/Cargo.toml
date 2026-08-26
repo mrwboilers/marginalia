@@ -1,6 +1,6 @@
 [package]
 name = "marginalia"
-version = "0.2.4"
+version = "0.2.5"
 description = "An offline-first study Bible for marking and study"
 authors = ["Mike"]
 edition = "2021"
