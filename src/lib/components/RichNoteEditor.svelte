@@ -21,7 +21,9 @@
       /* not supported everywhere; harmless */
     }
     editable.innerHTML = html || '<p><br></p>'; // set once; never re-assigned (would jump the caret)
-    editable.focus();
+    // preventScroll: a just-created note mounts at top:0 before its margin position
+    // is measured, so a scrolling focus would yank the reading view to the top.
+    editable.focus({ preventScroll: true });
     moveCaretToEnd(editable);
   });
 
