@@ -68,8 +68,12 @@ async function main() {
 
   // --- Per-book word tokens ---------------------------------------------
   const db = new DatabaseSync(DB);
+  // Strong's tagging is reconciled to the KJV wording only, so read KJV verses
+  // (translation_id = 1). Without this filter the DB now also holds WEB/BSB/YLT,
+  // and the map would keep whichever translation sorts last — aligning the KJV
+  // tags against the wrong text.
   const dbText = db.prepare(
-    `SELECT chapter, verse, text FROM verses WHERE book_id = ? ORDER BY chapter, verse`
+    `SELECT chapter, verse, text FROM verses WHERE book_id = ? AND translation_id = 1 ORDER BY chapter, verse`
   );
 
   // Some source files have malformed JSON in the non-English fields, so pull the
